@@ -1,10 +1,10 @@
 from time import sleep
 import numpy
+print("make period and dcycle_on into properties")
 
 
 class RelaisBox:
     length = 8  # number of bits
-    print("make period and dcycle_on into properties")
     period = 4e-2  # seconds
     dcylce_on = 2 / 3
     V_up = 5
@@ -62,7 +62,7 @@ class RelaisBox:
         setattr(self.device, self.dac_attribute, value)
 
     def _send_pattern(self):
-        print(self._pattern)
+        # print(self._pattern)
         self._set_dac_value(self.V_down)
         sleep(self.period)
 

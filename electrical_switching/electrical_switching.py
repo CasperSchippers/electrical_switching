@@ -31,18 +31,20 @@ class MeasurementProcedure(Procedure):
     AAA = Parameter("Software version", default=version)
     AAB = Parameter("Measurement date", default=date)
 
-    repeats = IntegerParameter("Repeats", default=1)
-    delay = FloatParameter("Delay", default=1, units="s")
-    alternations = IntegerParameter("Alternations", default=10)
+    repeats = IntegerParameter("Repeats", default=20)
+    delay = FloatParameter("Delay", default=100, units="s")
+    alternations = IntegerParameter("Alternations", default=2)
+
+    total_number_of_pulsetrains = repeats.value * alternations.value
     # measurements = IntegerParameter("Measurements per pulse", default=4)
 
     LIA_voltage = FloatParameter("Lock-in voltage", default=1, units="V")
     LIA_ramprate = FloatParameter("Lock-in ramp rate", default=1, units="V/s")
 
-    AWG_voltage = FloatParameter("Pulse voltage", default=1, units="V")
+    AWG_voltage = FloatParameter("Pulse voltage", default=5, units="V")
     AWG_pulsewidth = FloatParameter("Pulse width", default=200e-6, units="s")
     AWG_pulsespace = FloatParameter("Pulse spacing", default=400e-6, units="s")
-    AWG_number = FloatParameter("Number of pulses", default=1000)
+    AWG_number = FloatParameter("Number of pulses", default=50000)
 
     train_length = AWG_number.value * \
         (AWG_pulsespace.value + AWG_pulsewidth.value)
@@ -96,6 +98,10 @@ class MeasurementProcedure(Procedure):
             for j in range(self.repeats):
                 self.set_write_pulsetrain(i % 2)
                 self.measure_hall_voltage()
+                progress = (i * self.repeats + j + 1) / \
+                          self.total_number_of_pulsetrains * 100
+                print(progress)
+                self.emit('progress', progress)
 
     def measure_hall_voltage(self):
         self.RelBox.pattern = self.bit_seq_M

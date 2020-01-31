@@ -9,10 +9,11 @@ from pymeasure.display.Qt import QtGui
 from pymeasure.display.windows import ManagedWindow
 from pymeasure.experiment import Procedure, Results, unique_filename
 from pymeasure.experiment import Parameter, FloatParameter, BooleanParameter, IntegerParameter
-from pymeasure.instruments.agilent import Agilent33220A
+
+from pymeasure.instruments.keithley import Keithley2400
+from pymeasure.instruments.keithley import Keithley2700
 from pymeasure.instruments.srs import SR830
 
-from relaisbox import RelaisBox
 from time import sleep, time
 
 from datetime import datetime

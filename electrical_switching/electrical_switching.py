@@ -209,7 +209,13 @@ class MainWindow(ManagedWindow):
         )
 
         results = Results(procedure, filename)
-        experiment = self.new_experiment(results)
+
+        # manual define a curve to deal with nan values
+        curve = self.new_curve(results, connect="finite")
+        curve.setSymbol("o")
+        curve.setSymbolPen(curve.pen)
+
+        experiment = self.new_experiment(results, curve)
 
         self.manager.queue(experiment)
 

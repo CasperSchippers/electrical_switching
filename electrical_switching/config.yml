@@ -1,0 +1,49 @@
+# Configuration file for electrical switching experiments:
+#
+# In rows, define which rows are connected to: "ground", "pulse high",
+# "pulse low", "lock-in input A", "lock-in input B", "lock-in output"
+#
+# In columns, define an entry for each pulse and probe configuration
+# (i.e. columns: pulsing: pulse 1; pulse 2; etc. and 
+# columns: probing: probe Rxx1; probe Rxy1; probe Rxx2)
+# pulses have properties "high" and "low", probes have properties
+# "current high", "current low", "voltage high", and "voltage low"
+
+rows:
+  ground: 4
+  pulse high: 5
+  pulse low : 6
+  lock-in input A: 1
+  lock-in input B: 2
+  lock-in output: 3
+
+columns:
+  pulsing:
+    pulse 1:
+      high: [1, 5, 7]
+      low : [2, 6, 8]
+    pulse 2:
+      high: [3, 6, 7]
+      low : [4, 8, 5]
+
+  probing:
+    probe R1xx:
+      current high: 1
+      current low : 2
+      voltage high: 7
+      voltage low : 6
+    probe R1xy:
+      current high: 1
+      current low : 2
+      voltage high: 4
+      voltage low : 3
+    probe R3xx:
+      current high: 7
+      current low : 8
+      voltage high: 3
+      voltage low : 2
+    probe R3xy:
+      current high: 7
+      current low : 8
+      voltage high: 5
+      voltage low : 6

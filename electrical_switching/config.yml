@@ -4,10 +4,14 @@
 # "pulse low", "lock-in input A", "lock-in input B", "lock-in output"
 #
 # In columns, define an entry for each pulse and probe configuration
-# (i.e. columns: pulsing: pulse 1; pulse 2; etc. and 
-# columns: probing: probe Rxx1; probe Rxy1; probe Rxx2)
-# pulses have properties "high" and "low", probes have properties
+# (i.e. columns: pulsing: pulse 1; pulse 2; etc. and columns: probing:
+# probe Rxx1; probe Rxy1; probe Rxx2). Note that the pulses and probes
+# might be ordered alphabetically during the measurements.
+# 
+# Pulses have properties "high" and "low", probes have properties
 # "current high", "current low", "voltage high", and "voltage low"
+# Additional parameters (for pulses: "number of bursts", "length", "amplitude", and for probes: "sensitivity", "frequency", "time-constant",
+# "duration")
 
 rows:
   ground: 4
@@ -22,28 +26,33 @@ columns:
     pulse 1:
       high: [1, 5, 7]
       low : [2, 6, 8]
+      number of bursts: 4
     pulse 2:
       high: [3, 6, 7]
       low : [4, 8, 5]
 
   probing:
-    probe R1xx:
+    probe R1xz:
       current high: 1
       current low : 2
       voltage high: 7
       voltage low : 6
+      sensitivity: 5.e-2
     probe R1xy:
       current high: 1
       current low : 2
       voltage high: 4
       voltage low : 3
+      sensitivity: 5.e-4
     probe R3xx:
       current high: 7
       current low : 8
       voltage high: 3
       voltage low : 2
+      sensitivity: 5.e-2
     probe R3xy:
       current high: 7
       current low : 8
       voltage high: 5
       voltage low : 6
+      sensitivity: 2.e-4

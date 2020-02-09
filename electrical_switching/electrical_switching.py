@@ -87,17 +87,16 @@ class MeasurementProcedure(Procedure):
     pulse_amplitude = FloatParameter("Pulse amplitude", units="A",
                                      default=1)
     pulse_compliance = FloatParameter("Pulse compliance", units="V",
-                                     default=1)
+                                      default=1)
     pulse_length = FloatParameter("Pulse length", units="V",
                                   default=1)
-    pulse_burst_delay = FloatParameter("Pulse length", units="s",
-                                  default=1)
+    pulse_delay = FloatParameter("Delay between pulses within burst", units="s",
+                                 default=1)
     pulse_burst_length = IntegerParameter("Number of pulses per burst",
                                           default=1)
     pulse_number_of_bursts = IntegerParameter("Number of bursts",
                                               default=1)
 
-    
     # # probing parameters
     probe_amplitude = FloatParameter("Probe amplitude", units="V",
                                      default=1)
@@ -113,13 +112,27 @@ class MeasurementProcedure(Procedure):
     probe_series_resistance = FloatParameter("Probe series resistance", units="Ohm",
                                              default=1)
 
-
     # Define data columns
     DATA_COLUMNS = [
         "Timestamp (s)",
         "Pulse number",
-        "Pulse direction",
+        "Pulse configuration",
+        "Pulse voltage (V)",
+        "Probe configuration",
+        "Probe amplitude (V)",
+        "Probe sensitivity (V)",
+        "Probe frequency (Hz)",
+        "Probe time constant (s)",
     ]
+
+    max_number_of_probes = 6
+    probe_columns = list()
+    for i in range(max_number_of_probes):
+        probe_columns.extend(
+            ["Probe %d x (V)" % (i + 1), "Probe %d y (V)" % (i + 1)]
+        )
+
+    DATA_COLUMNS.extend(probe_columns)
 
     # pre-define default variables
     config = dict()
@@ -158,7 +171,7 @@ class MeasurementProcedure(Procedure):
         | |  | | | |  | |    | |    | |        | |   | . ` | |  __|
         | |__| | | |__| |    | |    | |____   _| |_  | |\  | | |____
          \____/   \____/     |_|    |______| |_____| |_| \_| |______|
-    
+
     """
 
     def __init__(self, **kwargs):
@@ -171,7 +184,6 @@ class MeasurementProcedure(Procedure):
         # Determine pulse sequence
         self.determine_pulse_parameters()
         self.determine_probe_parameters()
-
 
     # Define start-up sequence
     def startup(self):
@@ -191,7 +203,6 @@ class MeasurementProcedure(Procedure):
         # Connect and set up Keithley 2400 as pulsing device
         self.k2400 = Keithley2400('GPIB::2::INSTR')
 
-
     # Define measurement procedure
     def execute(self):
         """ Execute the actual measurement. Here only the global outline of
@@ -203,38 +214,43 @@ class MeasurementProcedure(Procedure):
             for i, pulse_idx in enumerate(self.pulse_sequence):
 
                 # Apply pulse sequence
-                self.apply_pulses(pulse_idx)
                 self.last_pulse_number += 1
                 self.last_pulse_config = pulse_idx
+                self.apply_pulses(pulse_idx)
 
                 # Wait between pulsing and probing
                 sleep(self.probe_delay)
 
                 # Check for stop command
-                if self.should_stop(): return
+                if self.should_stop():
+                    return
 
                 # Perform all probes
                 for probe_idx in self.probes.keys():
                     self.perform_probing(probe_idx)
 
                     # Check for stop command
-                    if self.should_stop(): return
+                    if self.should_stop():
+                        return
 
                 # Update progress
                 self.emit("progress", (n + (i + 1) / len(self.pulse_sequence)
-                    ) / self.number_of_repeats * 100)
+                                       ) / self.number_of_repeats * 100)
 
             # Update progress
             self.emit("progress", (n + 1) / self.number_of_repeats * 100)
 
             # Check for stop command
-            if self.should_stop(): return
-
+            if self.should_stop():
+                return
 
     # Define stop sequence
     def shutdown(self):
         """ Wrap up the measurement.
         """
+
+        self.lockin.sine_voltage = 0
+        self.k2700.open_all_channels()
         # Disconnect everything
         pass
 
@@ -313,25 +329,78 @@ class MeasurementProcedure(Procedure):
         """
 
         for i, (probe, probe_params) in enumerate(self.probes.items(), 1):
-            if not "amplitude" in probe_params:
+            if "amplitude" not in probe_params:
                 probe_params["amplitude"] = self.probe_amplitude
-            if not "sensitivity" in probe_params:
+            if "sensitivity" not in probe_params:
                 probe_params["sensitivity"] = self.probe_sensitivity
-            if not "frequency" in probe_params:
+            if "frequency" not in probe_params:
                 probe_params["frequency"] = self.probe_frequency
-            if not "time constant" in probe_params:
+            if "time constant" not in probe_params:
                 probe_params["time constant"] = self.probe_time_constant
-            if not "duration" in probe_params:
+            if "duration" not in probe_params:
                 probe_params["duration"] = self.probe_duration
 
-                self.probe_name_mapping[i] = probe            
+                self.probe_name_mapping[i] = probe
 
     def apply_pulses(self, pulse_idx):
+        """ Perform pulsing with the parameters associated with puls_idx
+
+        :param puls_idx: the index/name for the to-be-used probe
+        """
         log.info('Pulsing with pulse {}'.format(pulse_idx))
+
+        # Get pulse information associated with pulse_idx
+        pulse = self.pulses[pulse_idx]
+
         # Connect pulse channels
-        # Apply pulses
+        self.k2700.open_all_channels()
+        self.k2700.close_rows_to_columns(
+            rows=[self.row_pulse_hi, self.row_pulse_lo],
+            columns=[pulse["high"], pulse["low"]]
+        )
+
+        # Apply pulses (Code from Michal)
+        Plen = self.pulse_length
+        Pdel = self.pulse_delay
+        PN = self.pulse_burst_length
+        PVrange = self.pulse_compliance
+        PVcomp = self.pulse_compliance
+
+        Pdel1 = Pdel - 0.0006
+        Plen1 = Plen - 0.0025
+        t = (Pdel + Plen) * PN
+
+        # Set up pulse
+        self.k2400.reset()
+        self.k2400.clear()
+        self.k2400.config_buffer(PN, Pdel1)
+        self.k2400.auto_zero = False
+        self.k2400.source_mode = "current"
+        self.k2400.measure_concurent_functions = False
+        self.k2400.measure_voltage(0.08, PVrange, False)
+        self.k2400.compliance_voltage = PVcomp
+        self.k2400.source_current = self.pulse_amplitude
+        self.k2400.source_delay = Plen1
+        self.k2400.auto_output_off = True
+        self.k2400.display_enabled = False
+        self.k2400.start_buffer()
+
+        sleep(t + 5)
+        # Voltage during pulse
+        Pvolt = self.k2400.buffer_data()
+
+        # Stop pulsing
+        self.k2400.reset()
+        self.k2400.clear()
+        # *SRE 0
+        # :STAT:MEAS:ENAB 0
+
+        # Store the measured voltage
+        self.store_measurement({"Pulse voltage (V)": Pvolt})
+
         # Disconnect pulse channels
-        pass
+        self.k2700.open_all_channels()
+        self.k2700.close_rows_to_columns(self.row_ground, "all")
 
     def perform_probing(self, probe_idx):
         """ Perform probing with the parameters associated with probe_idx
@@ -340,15 +409,17 @@ class MeasurementProcedure(Procedure):
         """
         log.info('probing with probe {}'.format(probe_idx))
 
+        # Get probe information associated with probe_idx
         probe = self.probes[probe_idx]
 
         # Connect probe channels
         self.k2700.open_all_channels()
         self.k2700.close_rows_to_columns(
-            [
+            rows=[
                 self.row_lia_out, self.row_ground,
                 self.row_lia_inA, self.row_lia_inB,
-            ], [
+            ],
+            columns=[
                 probe["current high"], probe["current low"],
                 probe["voltage high"], probe["voltage low"],
             ])
@@ -359,6 +430,11 @@ class MeasurementProcedure(Procedure):
         self.lockin.time_constant = probe["time constant"]
         self.lockin.sine_voltage = probe["amplitude"]
 
+        sensitivity = self.lockin.sensitivity
+        frequency = self.lockin.frequency
+        time_constant = self.lockin.time_constant
+        sine_voltage = self.lockin.sine_voltage
+
         delay = probe["time constant"] * 5
 
         start = time()
@@ -368,7 +444,15 @@ class MeasurementProcedure(Procedure):
 
             # Probe
             print("probing", probe_idx)
-            print("fix probing")
+            self.store_measurement({
+                "Probe configuration": probe_idx,
+                "Probe %d x (V)" % (probe_idx + 1): self.lockin.x,
+                "Probe %d y (V)" % (probe_idx + 1): self.lockin.y,
+                "Probe amplitude (V)": sine_voltage,
+                "Probe sensitivity (V)": sensitivity,
+                "Probe frequency (Hz)": frequency,
+                "Probe time constant (s)": time_constant,
+            })
 
             # stop probing after duration
             if time() > start + probe["duration"]:
@@ -378,9 +462,27 @@ class MeasurementProcedure(Procedure):
         self.k2700.open_all_channels()
         self.k2700.close_rows_to_columns(self.row_ground, "all")
 
+    def store_measurement(self, data_dict=dict()):
+        # Create empty data dictionary
+        data = {
+            "Timestamp (s)": time(),
+            "Pulse number": self.last_pulse_number,
+            "Pulse configuration": self.last_pulse_config,
+            "Pulse voltage (V)": np.nan,
+            "Probe configuration": np.nan,
+            "Probe amplitude (V)": np.nan,
+            "Probe sensitivity (V)": np.nan,
+            "Probe frequency (Hz)": np.nan,
+            "Probe time constant (s)": np.nan,
+        }
+        for key in self.probe_columns:
+            data[key] = np.nan
 
-    def store_measurement(self, ):
-        pass
+        # Fill the appropriate column with data
+        data.update(data_dict)
+
+        # Write the data
+        self.emit("results", data)
 
 
 r"""
@@ -393,6 +495,7 @@ r"""
 
 
 """
+
 
 class MainWindow(ManagedWindow):
     def __init__(self):
@@ -418,9 +521,15 @@ class MainWindow(ManagedWindow):
                 "probe_series_resistance",
             ),
             x_axis="Pulse number",
-            y_axis="Pulse direction",
+            y_axis="Probe 1 x (V)",
+            display=(
+                "probe_name_mapping",
+                "pulse_name_mapping",
+                "pulse_sequence",
+                "pulse_amplitude",
+                "pulse_length",
+            )
         )
-
 
     def queue(self, *args, procedure=None):
         if procedure is None:
@@ -453,6 +562,3 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-
-
-# self.emit("results", data) data = dict()

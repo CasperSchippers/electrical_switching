@@ -71,7 +71,7 @@ class MeasurementProcedure(Procedure):
     AAB = Parameter("Measurement date", default=date)
 
     AAC_folder = Parameter('Measurement folder',
-                           default='D:\\data\\temp\\')
+                           default='E:\\data\\temp\\')
     AAD_filename_base = Parameter('Measurement filename base',
                                   default='electrical_switching')
     AAE_yaml_config_file = Parameter('YAML configuration file',
@@ -89,7 +89,7 @@ class MeasurementProcedure(Procedure):
     pulse_compliance = FloatParameter("Pulse compliance",
                                       units="V", default=10)
     pulse_length = FloatParameter("Pulse length",
-                                  units="s", default=3e-3)
+                                  units="s", default=0.01)
     pulse_delay = FloatParameter("Delay between pulses within burst",
                                  units="s", default=5)
     pulse_burst_length = IntegerParameter("Number of pulses per burst",
@@ -182,8 +182,8 @@ class MeasurementProcedure(Procedure):
         self.extract_config()
 
         # Determine pulse sequence
-        self.determine_pulse_parameters()
-        self.determine_probe_parameters()
+        self.determine_probe_mapping()
+        # self.determine_probe_sequence()
 
     # Define start-up sequence
     def startup(self):
@@ -191,6 +191,10 @@ class MeasurementProcedure(Procedure):
         First the config file is loaded, then the devices are connected and
         the default parameters are set.
         """
+        # Determine pulse sequence
+        self.determine_pulse_parameters()
+        self.determine_probe_parameters()
+
         # Connect and set up Keithley 2700 as switchboard
         self.k2700 = Keithley2700('GPIB::30::INSTR')
 
@@ -306,6 +310,21 @@ class MeasurementProcedure(Procedure):
         if len(self.cfg.keys()) > 0:
             log.info("The config file has additional (unhandled) attributes")
 
+    # def determine_pulse_mapping(self):
+    #     for i, (pulse, pulse_params) in enumerate(self.pulses.items(), 1):
+
+    #         self.pulse_name_mapping[i] = pulse
+
+    def determine_probe_mapping(self):
+        new_probes = dict()
+
+        for i, (probe, probe_params) in enumerate(self.probes.items(), 1):
+
+                self.probe_name_mapping[i] = probe
+                new_probes[i] = probe_params
+
+        self.probes = new_probes
+
     def determine_pulse_parameters(self):
         """ Determine the pulse sequence from either 'pulse_number_of_bursts' or (if
         defined) from the 'number of bursts' in the config file. The sequence is stored
@@ -327,8 +346,7 @@ class MeasurementProcedure(Procedure):
         """ Determine the probe parameters per probing configuration and check
         whether all required parameters are present in the probe dictionary.
         """
-
-        for i, (probe, probe_params) in enumerate(self.probes.items(), 1):
+        for probe_params in self.probes.values():
             if "amplitude" not in probe_params:
                 probe_params["amplitude"] = self.probe_amplitude
             if "sensitivity" not in probe_params:
@@ -339,8 +357,6 @@ class MeasurementProcedure(Procedure):
                 probe_params["time constant"] = self.probe_time_constant
             if "duration" not in probe_params:
                 probe_params["duration"] = self.probe_duration
-
-                self.probe_name_mapping[i] = probe
 
     def perform_pulsing(self, pulse_idx):
         """ Perform pulsing with the parameters associated with puls_idx
@@ -354,16 +370,20 @@ class MeasurementProcedure(Procedure):
 
         # Connect pulse channels
         self.k2700.open_all_channels()
+        # self.k2700.close_rows_to_columns(
+        #     rows=[self.row_pulse_hi, self.row_pulse_lo],
+        #     columns=[pulse["high"], pulse["low"]]
+        # )
         self.k2700.close_rows_to_columns(
-            rows=[self.row_pulse_hi, self.row_pulse_lo],
-            columns=[pulse["high"], pulse["low"]]
-        )
+            rows=self.row_pulse_hi, columns=pulse["high"])
+        self.k2700.close_rows_to_columns(
+            rows=self.row_pulse_lo, columns=pulse["low"])
 
         # Apply pulses
         pulse_voltage = self.apply_pulses()
 
         # Store the measured voltage
-        self.store_measurement({"Pulse voltage (V)": Pvolt})
+        self.store_measurement({"Pulse voltage (V)": pulse_voltage})
 
         # Disconnect pulse channels
         self.k2700.open_all_channels()
@@ -403,6 +423,7 @@ class MeasurementProcedure(Procedure):
         sine_voltage = self.lockin.sine_voltage
 
         delay = probe["time constant"] * 5
+        sleep(1)
 
         start = time()
         while True:
@@ -410,11 +431,10 @@ class MeasurementProcedure(Procedure):
             sleep(delay)
 
             # Probe
-            print("probing", probe_idx)
             self.store_measurement({
                 "Probe configuration": probe_idx,
-                "Probe %d x (V)" % (probe_idx + 1): self.lockin.x,
-                "Probe %d y (V)" % (probe_idx + 1): self.lockin.y,
+                "Probe %d x (V)" % (probe_idx): self.lockin.x,
+                "Probe %d y (V)" % (probe_idx): self.lockin.y,
                 "Probe amplitude (V)": sine_voltage,
                 "Probe sensitivity (V)": sensitivity,
                 "Probe frequency (Hz)": frequency,
@@ -422,7 +442,7 @@ class MeasurementProcedure(Procedure):
             })
 
             # stop probing after duration
-            if time() > start + probe["duration"]:
+            if time() - start > probe["duration"]:
                 break
 
         # Turn off lock-in output
@@ -461,6 +481,7 @@ class MeasurementProcedure(Procedure):
         """
 
         # Apply pulses (Code from Michal)
+        Pamp = self.pulse_amplitude
         Plen = self.pulse_length
         Pdel = self.pulse_delay
         PN = self.pulse_burst_length
@@ -472,30 +493,42 @@ class MeasurementProcedure(Procedure):
         t = (Pdel + Plen) * PN
 
         # Set up pulse
-        self.k2400.reset()
-        self.k2400.clear()
-        self.k2400.config_buffer(PN, Pdel1)
-        self.k2400.auto_zero = False
-        self.k2400.source_mode = "current"
-        self.k2400.measure_concurent_functions = False
-        self.k2400.measure_voltage(0.08, PVrange, False)
-        self.k2400.compliance_voltage = PVcomp
-        self.k2400.source_current = self.pulse_amplitude
-        self.k2400.source_delay = Plen1
-        self.k2400.auto_output_off = True
-        self.k2400.display_enabled = False
-        self.k2400.start_buffer()
+        self.k2400.write(f"""
+        :*RST
+        :TRAC:CLE
+        :TRAC:POIN {PN}
+        :STAT:MEAS:ENAB 512
+        :*SRE 1
+        :TRIG:COUN {PN}
+        :SYST:AZER:STAT OFF
+        :SOUR:FUNC CURR
+        :SENS:FUNC:CONC OFF
+        :SENS:FUNC "VOLT"
+        :SENS:VOLT:NPLC 0.08
+        :SENS:VOLT:RANG {PVrange}
+        :SENS:VOLT:PROT:LEV {PVcomp}
+        :FORM:ELEM VOLT
+        :SOUR:CURR {Pamp}
+        :TRIG:DEL {Pdel1}
+        :SOUR:DEL {Plen1}
+        :TRAC:FEED:CONT NEXT
+        :SOUR:CLE:AUTO ON
+        :DISP:ENAB ON
+        :INIT
+        """)
 
         sleep(t + 5)
 
         # Voltage during pulse
-        pulse_voltage = self.k2400.buffer_data()
+        pulse_voltage = self.k2400.buffer_data[0]
 
         # Stop pulsing
-        self.k2400.reset()
-        self.k2400.clear()
-        # *SRE 0
-        # :STAT:MEAS:ENAB 0
+        self.k2400.write("""
+        *RST
+        *CLS
+        *SRE 0
+        :STAT:MEAS:ENAB 0
+        """)
 
         # Return pulse-voltage
         return pulse_voltage
@@ -526,7 +559,7 @@ class MainWindow(ManagedWindow):
                 "pulse_compliance",
                 "pulse_length",
                 "pulse_burst_length",
-                "pulse_burst_delay",
+                "pulse_delay",
                 "pulse_number_of_bursts",
                 "probe_delay",
                 'probe_amplitude',
@@ -538,7 +571,7 @@ class MainWindow(ManagedWindow):
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",
-            display=(
+            displays=(
                 "probe_name_mapping",
                 "pulse_name_mapping",
                 "pulse_sequence",

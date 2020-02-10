@@ -84,33 +84,33 @@ class MeasurementProcedure(Procedure):
                                  default=1)
 
     # # pulsing parameters
-    pulse_amplitude = FloatParameter("Pulse amplitude", units="A",
-                                     default=1)
-    pulse_compliance = FloatParameter("Pulse compliance", units="V",
-                                      default=1)
-    pulse_length = FloatParameter("Pulse length", units="V",
-                                  default=1)
-    pulse_delay = FloatParameter("Delay between pulses within burst", units="s",
-                                 default=1)
+    pulse_amplitude = FloatParameter("Pulse amplitude",
+                                     units="A", default=0.1)
+    pulse_compliance = FloatParameter("Pulse compliance",
+                                      units="V", default=10)
+    pulse_length = FloatParameter("Pulse length",
+                                  units="s", default=3e-3)
+    pulse_delay = FloatParameter("Delay between pulses within burst",
+                                 units="s", default=5)
     pulse_burst_length = IntegerParameter("Number of pulses per burst",
                                           default=1)
     pulse_number_of_bursts = IntegerParameter("Number of bursts",
                                               default=1)
 
     # # probing parameters
-    probe_amplitude = FloatParameter("Probe amplitude", units="V",
-                                     default=1)
-    probe_sensitivity = FloatParameter("Probe sensitivity", units="V",
-                                       default=1e-1)
-    probe_frequency = FloatParameter("Probe frequency", units="Hz",
-                                     default=79)
-    probe_time_constant = FloatParameter("Probe time constant", units="s",
-                                         default=0.1)
-    probe_duration = FloatParameter("Probe duration", units="s",
-                                    default=1)
+    probe_amplitude = FloatParameter("Probe amplitude",
+                                     units="V", default=1)
+    probe_sensitivity = FloatParameter("Probe sensitivity",
+                                       units="V", default=1e-1)
+    probe_frequency = FloatParameter("Probe frequency",
+                                     units="Hz", default=79)
+    probe_time_constant = FloatParameter("Probe time constant",
+                                         units="s", default=0.1)
+    probe_duration = FloatParameter("Probe duration",
+                                    units="s", default=1)
 
-    probe_series_resistance = FloatParameter("Probe series resistance", units="Ohm",
-                                             default=1)
+    probe_series_resistance = FloatParameter("Probe series resistance",
+                                             units="Ohm", default=1)
 
     # Define data columns
     DATA_COLUMNS = [

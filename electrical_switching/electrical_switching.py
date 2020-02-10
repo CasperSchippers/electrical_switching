@@ -216,7 +216,7 @@ class MeasurementProcedure(Procedure):
                 # Apply pulse sequence
                 self.last_pulse_number += 1
                 self.last_pulse_config = pulse_idx
-                self.apply_pulses(pulse_idx)
+                self.perform_pulsing(pulse_idx)
 
                 # Wait between pulsing and probing
                 sleep(self.probe_delay)
@@ -342,7 +342,7 @@ class MeasurementProcedure(Procedure):
 
                 self.probe_name_mapping[i] = probe
 
-    def apply_pulses(self, pulse_idx):
+    def perform_pulsing(self, pulse_idx):
         """ Perform pulsing with the parameters associated with puls_idx
 
         :param puls_idx: the index/name for the to-be-used probe
@@ -359,41 +359,8 @@ class MeasurementProcedure(Procedure):
             columns=[pulse["high"], pulse["low"]]
         )
 
-        # Apply pulses (Code from Michal)
-        Plen = self.pulse_length
-        Pdel = self.pulse_delay
-        PN = self.pulse_burst_length
-        PVrange = self.pulse_compliance
-        PVcomp = self.pulse_compliance
-
-        Pdel1 = Pdel - 0.0006
-        Plen1 = Plen - 0.0025
-        t = (Pdel + Plen) * PN
-
-        # Set up pulse
-        self.k2400.reset()
-        self.k2400.clear()
-        self.k2400.config_buffer(PN, Pdel1)
-        self.k2400.auto_zero = False
-        self.k2400.source_mode = "current"
-        self.k2400.measure_concurent_functions = False
-        self.k2400.measure_voltage(0.08, PVrange, False)
-        self.k2400.compliance_voltage = PVcomp
-        self.k2400.source_current = self.pulse_amplitude
-        self.k2400.source_delay = Plen1
-        self.k2400.auto_output_off = True
-        self.k2400.display_enabled = False
-        self.k2400.start_buffer()
-
-        sleep(t + 5)
-        # Voltage during pulse
-        Pvolt = self.k2400.buffer_data()
-
-        # Stop pulsing
-        self.k2400.reset()
-        self.k2400.clear()
-        # *SRE 0
-        # :STAT:MEAS:ENAB 0
+        # Apply pulses
+        pulse_voltage = self.apply_pulses()
 
         # Store the measured voltage
         self.store_measurement({"Pulse voltage (V)": Pvolt})
@@ -483,6 +450,51 @@ class MeasurementProcedure(Procedure):
 
         # Write the data
         self.emit("results", data)
+
+    def apply_pulses(self):
+        """ Apply the actual pulses. This function is responsible for
+        communicating with the devices that are required for the pulsing.
+        """
+
+        # Apply pulses (Code from Michal)
+        Plen = self.pulse_length
+        Pdel = self.pulse_delay
+        PN = self.pulse_burst_length
+        PVrange = self.pulse_compliance
+        PVcomp = self.pulse_compliance
+
+        Pdel1 = Pdel - 0.0006
+        Plen1 = Plen - 0.0025
+        t = (Pdel + Plen) * PN
+
+        # Set up pulse
+        self.k2400.reset()
+        self.k2400.clear()
+        self.k2400.config_buffer(PN, Pdel1)
+        self.k2400.auto_zero = False
+        self.k2400.source_mode = "current"
+        self.k2400.measure_concurent_functions = False
+        self.k2400.measure_voltage(0.08, PVrange, False)
+        self.k2400.compliance_voltage = PVcomp
+        self.k2400.source_current = self.pulse_amplitude
+        self.k2400.source_delay = Plen1
+        self.k2400.auto_output_off = True
+        self.k2400.display_enabled = False
+        self.k2400.start_buffer()
+
+        sleep(t + 5)
+
+        # Voltage during pulse
+        pulse_voltage = self.k2400.buffer_data()
+
+        # Stop pulsing
+        self.k2400.reset()
+        self.k2400.clear()
+        # *SRE 0
+        # :STAT:MEAS:ENAB 0
+
+        # Return pulse-voltage
+        return pulse_voltage
 
 
 r"""

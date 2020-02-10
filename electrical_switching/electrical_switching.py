@@ -425,6 +425,10 @@ class MeasurementProcedure(Procedure):
             if time() > start + probe["duration"]:
                 break
 
+        # Turn off lock-in output
+        self.lockin.sine_voltage = 0
+        sleep(delay)
+
         # Disconnect probe channels
         self.k2700.open_all_channels()
         self.k2700.close_rows_to_columns(self.row_ground, "all")

@@ -16,6 +16,7 @@ from pymeasure.instruments.srs import SR830
 from time import sleep, time
 from pprint import pprint
 from pathlib import Path
+from shutil import copy
 from datetime import datetime
 from git import cmd, Repo, exc
 import numpy as np
@@ -24,16 +25,16 @@ import yaml
 
 
 # Initialize logger & log to file
-log = logging.getLogger('')
-file_handler = logging.FileHandler('electrical_switching.log', 'a')
+log = logging.getLogger("")
+file_handler = logging.FileHandler("electrical_switching.log", "a")
 file_handler.setFormatter(logging.Formatter(
-    fmt='%(asctime)s : %(message)s (%(levelname)s)',
-    datefmt='%m/%d/%Y %I:%M:%S %p'
+    fmt="%(asctime)s : %(message)s (%(levelname)s)",
+    datefmt="%m/%d/%Y %I:%M:%S %p"
 ))
 log.addHandler(file_handler)
 
 # Register as separate software
-myappid = 'fna.MeasurementSoftware.ElectricalSwitching'
+myappid = "fna.MeasurementSoftware.ElectricalSwitching"
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 # get Git software version
@@ -70,12 +71,12 @@ class MeasurementProcedure(Procedure):
     AAA = Parameter("Software version", default=version)
     AAB = Parameter("Measurement date", default=date)
 
-    AAC_folder = Parameter('Measurement folder',
-                           default='E:\\data\\temp\\')
-    AAD_filename_base = Parameter('Measurement filename base',
-                                  default='electrical_switching')
-    AAE_yaml_config_file = Parameter('YAML configuration file',
-                                     default='config.yml')
+    AAC_folder = Parameter("Measurement folder",
+                           default="D:\\data\\temp\\")
+    AAD_filename_base = Parameter("Measurement filename base",
+                                  default="electrical_switching")
+    AAE_yaml_config_file = Parameter("YAML configuration file",
+                                     default="config.yml")
 
     # general parameters
     number_of_repeats = IntegerParameter("Number of repeats",
@@ -144,21 +145,20 @@ class MeasurementProcedure(Procedure):
     row_lia_out = 3
 
     pulses = {
-        'pulse 1': {'high': 1, 'low': 2},
-        'pulse 2': {'high': 3, 'low': 4}
+        "pulse 1": {"high": 1, "low": 2},
+        "pulse 2": {"high": 3, "low": 4}
     }
 
     probes = {
-        'Rxy': {'current high': 7,
-                'current low': 8,
-                'voltage high': 5,
-                'voltage low': 6,
-                'sensitivity': 2e-4},
+        "Rxy": {"current high": 7,
+                "current low": 8,
+                "voltage high": 5,
+                "voltage low": 6},
     }
 
-    probe_name_mapping = Parameter("Probe name mapping", default=dict())
-    pulse_name_mapping = Parameter("Pulse name mapping", default=dict())
-    pulse_sequence = Parameter("Pulse sequence", default=list())
+    probe_name_mapping = dict()
+    pulse_name_mapping = dict()
+    pulse_sequence = list()
 
     # Pulse counter
     last_pulse_number = 0
@@ -174,8 +174,12 @@ class MeasurementProcedure(Procedure):
 
     """
 
-    def __init__(self, **kwargs):
-        super(MeasurementProcedure, self).__init__(**kwargs)
+    # Define start-up sequence
+    def startup(self):
+        """ Set up the properties and devices required for the measurement.
+        First the config file is loaded, then the devices are connected and
+        the default parameters are set.
+        """
 
         # Load YAML config files
         self.load_yaml_config()
@@ -183,20 +187,11 @@ class MeasurementProcedure(Procedure):
 
         # Determine pulse sequence
         self.determine_probe_mapping()
-        # self.determine_probe_sequence()
-
-    # Define start-up sequence
-    def startup(self):
-        """ Set up the properties and devices required for the measurement.
-        First the config file is loaded, then the devices are connected and
-        the default parameters are set.
-        """
-        # Determine pulse sequence
         self.determine_pulse_parameters()
         self.determine_probe_parameters()
 
         # Connect and set up Keithley 2700 as switchboard
-        self.k2700 = Keithley2700('GPIB::30::INSTR')
+        self.k2700 = Keithley2700("GPIB::30::INSTR")
 
         # Connect everything to ground
         self.k2700.close_rows_to_columns(self.row_ground, "all")
@@ -205,7 +200,7 @@ class MeasurementProcedure(Procedure):
         self.lockin = SR830("GPIB::1")
 
         # Connect and set up Keithley 2400 as pulsing device
-        self.k2400 = Keithley2400('GPIB::2::INSTR')
+        self.k2400 = Keithley2400("GPIB::2::INSTR")
 
     # Define measurement procedure
     def execute(self):
@@ -253,9 +248,9 @@ class MeasurementProcedure(Procedure):
         """ Wrap up the measurement.
         """
 
+        # Disconnect everything
         self.lockin.sine_voltage = 0
         self.k2700.open_all_channels()
-        # Disconnect everything
         pass
 
     r"""
@@ -275,19 +270,42 @@ class MeasurementProcedure(Procedure):
         this cannot be found, load it from the software folder.
         """
         # Try to find config file in output folder
+        read_cfg = True
         file = Path(self.AAC_folder) / self.AAE_yaml_config_file
+        file_with_software = Path(self.AAE_yaml_config_file)
 
-        if not file.is_file():
-            file = Path(self.AAE_yaml_config_file)
+        # Determine if the YAML file exists in the data folder or the software folder
+        if file.is_file():
+            log.info("Loading YAML config file from data folder")
+        elif file_with_software.is_file():
+            log.info("Copying YAML config file to data folder")
+            copy(file_with_software, file)
+        else:
+            log.info("Not using a YAML config file")
+            read_cfg = False
 
-        with open(file, 'r') as yml_file:
-            self.cfg = yaml.full_load(yml_file)
+        # read or write the config file
+        if read_cfg:
+            with open(file, "r") as yml_file:
+                self.cfg = yaml.full_load(yml_file)
+        else:
+            log.info("Writing default config (only for the columns) to data folder")
+
+            cfg = {
+                "columns": {
+                    "pulsing": self.pulses,
+                    "probing": self.probes,
+                }
+            }
+
+            with open(file, "w") as yml_file:
+                yaml.dump(cfg, yml_file, default_flow_style=False)
 
     def extract_config(self):
         """ Extract the loaded config and save to the appropriate variables.
         """
-        if 'rows' in self.cfg:
-            rows_cfg = self.cfg.pop('rows')
+        if "rows" in self.cfg:
+            rows_cfg = self.cfg.pop("rows")
 
             self.row_ground = rows_cfg["ground"]
             self.row_pulse_hi = rows_cfg["pulse high"]
@@ -296,8 +314,8 @@ class MeasurementProcedure(Procedure):
             self.row_lia_inB = rows_cfg["lock-in input B"]
             self.row_lia_out = rows_cfg["lock-in output"]
 
-        if 'columns' in self.cfg:
-            cols_cfg = self.cfg.pop('columns')
+        if "columns" in self.cfg:
+            cols_cfg = self.cfg.pop("columns")
             if "pulsing" in cols_cfg:
                 self.pulses = {
                     k.replace("pulse ", ""): v for k, v in cols_cfg["pulsing"].items()
@@ -310,11 +328,6 @@ class MeasurementProcedure(Procedure):
         if len(self.cfg.keys()) > 0:
             log.info("The config file has additional (unhandled) attributes")
 
-    # def determine_pulse_mapping(self):
-    #     for i, (pulse, pulse_params) in enumerate(self.pulses.items(), 1):
-
-    #         self.pulse_name_mapping[i] = pulse
-
     def determine_probe_mapping(self):
         new_probes = dict()
 
@@ -326,10 +339,11 @@ class MeasurementProcedure(Procedure):
         self.probes = new_probes
 
     def determine_pulse_parameters(self):
-        """ Determine the pulse sequence from either 'pulse_number_of_bursts' or (if
-        defined) from the 'number of bursts' in the config file. The sequence is stored
-        in the parameter 'pulse_sequence'.
+        """ Determine the pulse sequence from either "pulse_number_of_bursts" or (if
+        defined) from the "number of bursts" in the config file. The sequence is stored
+        in the parameter "pulse_sequence".
         """
+        self.pulse_sequence = list()
 
         for i, (pulse, pulse_params) in enumerate(self.pulses.items(), 1):
 
@@ -363,7 +377,7 @@ class MeasurementProcedure(Procedure):
 
         :param puls_idx: the index/name for the to-be-used probe
         """
-        log.info('Pulsing with pulse {}'.format(pulse_idx))
+        log.info("Pulsing with pulse {}".format(pulse_idx))
 
         # Get pulse information associated with pulse_idx
         pulse = self.pulses[pulse_idx]
@@ -394,7 +408,7 @@ class MeasurementProcedure(Procedure):
 
         :param probe_idx: the index/name for the to-be-used probe
         """
-        log.info('probing with probe {}'.format(probe_idx))
+        log.info("probing with probe {}".format(probe_idx))
 
         # Get probe information associated with probe_idx
         probe = self.probes[probe_idx]
@@ -422,6 +436,11 @@ class MeasurementProcedure(Procedure):
         time_constant = self.lockin.time_constant
         sine_voltage = self.lockin.sine_voltage
 
+        sensitivity = probe["sensitivity"]
+        frequency = probe["frequency"]
+        time_constant = probe["time constant"]
+        sine_voltage = probe["amplitude"]
+
         delay = probe["time constant"] * 5
         sleep(1)
 
@@ -430,11 +449,13 @@ class MeasurementProcedure(Procedure):
             # Wait for value to settle
             sleep(delay)
 
+            x, y = self.lockin.x, self.lockin.y
+
             # Probe
             self.store_measurement({
                 "Probe configuration": probe_idx,
-                "Probe %d x (V)" % (probe_idx): self.lockin.x,
-                "Probe %d y (V)" % (probe_idx): self.lockin.y,
+                "Probe %d x (V)" % (probe_idx): x,
+                "Probe %d y (V)" % (probe_idx): y,
                 "Probe amplitude (V)": sine_voltage,
                 "Probe sensitivity (V)": sensitivity,
                 "Probe frequency (Hz)": frequency,
@@ -447,9 +468,9 @@ class MeasurementProcedure(Procedure):
 
         # Turn off lock-in output
         self.lockin.sine_voltage = 0
-        sleep(delay)
+        sleep(1 + delay)
 
-        # Disconnect probe channels
+        # # Disconnect probe channels
         self.k2700.open_all_channels()
         self.k2700.close_rows_to_columns(self.row_ground, "all")
 
@@ -562,19 +583,16 @@ class MainWindow(ManagedWindow):
                 "pulse_delay",
                 "pulse_number_of_bursts",
                 "probe_delay",
-                'probe_amplitude',
-                'probe_sensitivity',
-                'probe_frequency',
-                'probe_time_constant',
-                'probe_duration',
+                "probe_amplitude",
+                "probe_sensitivity",
+                "probe_frequency",
+                "probe_time_constant",
+                "probe_duration",
                 "probe_series_resistance",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",
             displays=(
-                "probe_name_mapping",
-                "pulse_name_mapping",
-                "pulse_sequence",
                 "pulse_amplitude",
                 "pulse_length",
             )
@@ -590,8 +608,8 @@ class MainWindow(ManagedWindow):
         filename = unique_filename(
             folder,
             prefix=filename,
-            ext='txt',
-            datetimeformat='',
+            ext="txt",
+            datetimeformat="",
         )
 
         results = Results(procedure, filename)

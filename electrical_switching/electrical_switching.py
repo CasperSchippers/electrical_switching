@@ -329,6 +329,8 @@ class MeasurementProcedure(Procedure):
             log.info("The config file has additional (unhandled) attributes")
 
     def determine_probe_mapping(self):
+        """ TODO: function description
+        """
         new_probes = dict()
 
         for i, (probe, probe_params) in enumerate(self.probes.items(), 1):

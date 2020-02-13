@@ -10,7 +10,7 @@ from pymeasure.display.windows import ManagedWindow
 from pymeasure.experiment import Procedure, Results, unique_filename, \
     Parameter, FloatParameter, BooleanParameter, \
     IntegerParameter, ListParameter
-from pymeasure.instruments.keithley import Keithley2400, Keithley2700
+from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.srs import SR830
 
 from time import sleep, time
@@ -199,8 +199,10 @@ class MeasurementProcedure(Procedure):
         # Connect and set up SR830 as probing lock-in amplifier
         self.lockin = SR830("GPIB::1")
 
-        # Connect and set up Keithley 2400 as pulsing device
-        self.k2400 = Keithley2400("GPIB::2::INSTR")
+        # Connect and set up Keithley 6221 as pulsing device
+        self.k6221 = Keithley6221("GPIB::13::INSTR")
+        self.k6221.waveform_abort()
+        self.k6221.source_enabled = False
 
     # Define measurement procedure
     def execute(self):
@@ -503,57 +505,30 @@ class MeasurementProcedure(Procedure):
         communicating with the devices that are required for the pulsing.
         """
 
-        # Apply pulses (Code from Michal)
-        Pamp = self.pulse_amplitude
-        Plen = self.pulse_length
-        Pdel = self.pulse_delay
-        PN = self.pulse_burst_length
-        PVrange = self.pulse_compliance
-        PVcomp = self.pulse_compliance
+        # For defining single pulses, use a square wave with 100% duty-cycle
+        # for a single cycle; pulse-length is then defined by 1 / frequency
+        self.k6221.waveform_function = "square"
+        self.k6221.waveform_amplitude = self.pulse_amplitude
+        self.k6221.waveform_offset = 0
+        self.k6221.source_compliance = self.pulse_compliance
+        self.k6221.waveform_dutycycle = 100
+        self.k6221.waveform_frequency = 1 / self.pulse_length
+        self.k6221.waveform_ranging = "best"
 
-        Pdel1 = Pdel - 0.0006
-        Plen1 = Plen - 0.0025
-        t = (Pdel + Plen) * PN
+        # Arm the waveform
+        self.k6221.waveform_arm()
 
-        # Set up pulse
-        self.k2400.write(f"""
-        :*RST
-        :TRAC:CLE
-        :TRAC:POIN {PN}
-        :STAT:MEAS:ENAB 512
-        :*SRE 1
-        :TRIG:COUN {PN}
-        :SYST:AZER:STAT OFF
-        :SOUR:FUNC CURR
-        :SENS:FUNC:CONC OFF
-        :SENS:FUNC "VOLT"
-        :SENS:VOLT:NPLC 0.08
-        :SENS:VOLT:RANG {PVrange}
-        :SENS:VOLT:PROT:LEV {PVcomp}
-        :FORM:ELEM VOLT
-        :SOUR:CURR {Pamp}
-        :TRIG:DEL {Pdel1}
-        :SOUR:DEL {Plen1}
-        :TRAC:FEED:CONT NEXT
-        :SOUR:CLE:AUTO ON
-        :DISP:ENAB ON
-        :INIT
-        """)
+        # Apply the pulses; each start triggers a single pulse
+        for i in range(self.pulse_burst_length):
+            sleep(self.pulse_delay)
+            self.k6221.waveform_start()
+            sleep(self.pulse_length)
 
-        sleep(t + 5)
+        pulse_voltage = np.nan
 
-        # Voltage during pulse
-        pulse_voltage = self.k2400.buffer_data[0]
+        # Disarm the waveform
+        self.k6221.waveform_abort()
 
-        # Stop pulsing
-        self.k2400.write("""
-        *RST
-        *CLS
-        *SRE 0
-        :STAT:MEAS:ENAB 0
-        """)
-
-        # Return pulse-voltage
         return pulse_voltage
 
 

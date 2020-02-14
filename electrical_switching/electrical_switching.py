@@ -386,14 +386,10 @@ class MeasurementProcedure(Procedure):
 
         # Connect pulse channels
         self.k2700.open_all_channels()
-        # self.k2700.close_rows_to_columns(
-        #     rows=[self.row_pulse_hi, self.row_pulse_lo],
-        #     columns=[pulse["high"], pulse["low"]]
-        # )
         self.k2700.close_rows_to_columns(
-            rows=self.row_pulse_hi, columns=pulse["high"])
-        self.k2700.close_rows_to_columns(
-            rows=self.row_pulse_lo, columns=pulse["low"])
+            rows=[self.row_pulse_hi, self.row_pulse_lo],
+            columns=[pulse["high"], pulse["low"]]
+        )
 
         # Apply pulses
         pulse_timestamp, pulse_voltage = self.apply_pulses()

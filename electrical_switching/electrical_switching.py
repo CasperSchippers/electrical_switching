@@ -536,7 +536,7 @@ class MeasurementProcedure(Procedure):
 
             # Get time stamp for the pulse
             if pulse_timestamp is None:
-                pulse_timestamp
+                pulse_timestamp = time()
 
             sleep(self.pulse_length * 1e-3)
 

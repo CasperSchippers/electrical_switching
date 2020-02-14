@@ -331,7 +331,8 @@ class MeasurementProcedure(Procedure):
             log.info("The config file has additional (unhandled) attributes")
 
     def determine_probe_mapping(self):
-        """ TODO: function description
+        """ Map a number to each probe configuration for correct reference throughout
+        the measurement script.
         """
         new_probes = dict()
 
@@ -388,14 +389,10 @@ class MeasurementProcedure(Procedure):
 
         # Connect pulse channels
         self.k2700.open_all_channels()
-        # self.k2700.close_rows_to_columns(
-        #     rows=[self.row_pulse_hi, self.row_pulse_lo],
-        #     columns=[pulse["high"], pulse["low"]]
-        # )
         self.k2700.close_rows_to_columns(
-            rows=self.row_pulse_hi, columns=pulse["high"])
-        self.k2700.close_rows_to_columns(
-            rows=self.row_pulse_lo, columns=pulse["low"])
+            rows=[self.row_pulse_hi, self.row_pulse_lo],
+            columns=[pulse["high"], pulse["low"]]
+        )
 
         # Apply pulses
         pulse_timestamp, pulse_hits_compliance = self.apply_pulses()
@@ -482,6 +479,12 @@ class MeasurementProcedure(Procedure):
         self.k2700.close_rows_to_columns(self.row_ground, "all")
 
     def store_measurement(self, data_dict=dict()):
+        """ Create the data structure and save data to file.
+
+        :param data_dict: a dictionary containing the data to be saved.
+            Keys in this dictionary overwrite the auto-generated values.
+        """
+
         # Create empty data dictionary
         data = {
             "Timestamp (s)": time(),

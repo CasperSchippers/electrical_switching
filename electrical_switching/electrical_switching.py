@@ -90,7 +90,7 @@ class MeasurementProcedure(Procedure):
     pulse_compliance = FloatParameter("Pulse compliance",
                                       units="V", default=10)
     pulse_length = FloatParameter("Pulse length",
-                                  units="s", default=0.01)
+                                  units="ms", default=3)
     pulse_delay = FloatParameter("Delay between pulses within burst",
                                  units="s", default=5)
     pulse_burst_length = IntegerParameter("Number of pulses per burst",
@@ -118,7 +118,7 @@ class MeasurementProcedure(Procedure):
         "Timestamp (s)",
         "Pulse number",
         "Pulse configuration",
-        "Pulse voltage (V)",
+        "Pulse hits compliance",
         "Probe configuration",
         "Probe amplitude (V)",
         "Probe sensitivity (V)",
@@ -398,10 +398,10 @@ class MeasurementProcedure(Procedure):
             rows=self.row_pulse_lo, columns=pulse["low"])
 
         # Apply pulses
-        pulse_voltage = self.apply_pulses()
+        pulse_hits_compliance = self.apply_pulses()
 
         # Store the measured voltage
-        self.store_measurement({"Pulse voltage (V)": pulse_voltage})
+        self.store_measurement({"Pulse hits compliance": pulse_hits_compliance})
 
         # Disconnect pulse channels
         self.k2700.open_all_channels()
@@ -484,7 +484,7 @@ class MeasurementProcedure(Procedure):
             "Timestamp (s)": time(),
             "Pulse number": self.last_pulse_number,
             "Pulse configuration": self.last_pulse_config,
-            "Pulse voltage (V)": np.nan,
+            "Pulse hits compliance": np.nan,
             "Probe configuration": np.nan,
             "Probe amplitude (V)": np.nan,
             "Probe sensitivity (V)": np.nan,
@@ -507,13 +507,16 @@ class MeasurementProcedure(Procedure):
 
         # For defining single pulses, use a square wave with 100% duty-cycle
         # for a single cycle; pulse-length is then defined by 1 / frequency
+        self.k6221.clear()
+
         self.k6221.waveform_function = "square"
         self.k6221.waveform_amplitude = self.pulse_amplitude
         self.k6221.waveform_offset = 0
         self.k6221.source_compliance = self.pulse_compliance
         self.k6221.waveform_dutycycle = 100
-        self.k6221.waveform_frequency = 1 / self.pulse_length
+        self.k6221.waveform_frequency = 1e3 / self.pulse_length
         self.k6221.waveform_ranging = "best"
+        self.k6221.waveform_duration_cycles = 1
 
         # Arm the waveform
         self.k6221.waveform_arm()
@@ -522,14 +525,21 @@ class MeasurementProcedure(Procedure):
         for i in range(self.pulse_burst_length):
             sleep(self.pulse_delay)
             self.k6221.waveform_start()
-            sleep(self.pulse_length)
+            sleep(self.pulse_length * 1e-3)
 
-        pulse_voltage = np.nan
+        # Wait to ensure the pulse is over and the waveform can be aborted
+        sleep(15e-3)
 
         # Disarm the waveform
         self.k6221.waveform_abort()
 
-        return pulse_voltage
+        # Check whether the compliance was hit during the pulse
+        # This makes use of the status bit registers and specifically reads
+        # bit 3 (compliance) of the Measurement Event Register
+        event_bytes = self.k6221.measurement_events
+        pulse_hits_compliance = int(format(event_bytes, "08b")[-4])
+
+        return pulse_hits_compliance
 
 
 r"""

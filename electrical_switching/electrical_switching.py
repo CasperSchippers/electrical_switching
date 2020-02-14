@@ -396,10 +396,13 @@ class MeasurementProcedure(Procedure):
             rows=self.row_pulse_lo, columns=pulse["low"])
 
         # Apply pulses
-        pulse_voltage = self.apply_pulses()
+        pulse_timestamp, pulse_voltage = self.apply_pulses()
 
         # Store the measured voltage
-        self.store_measurement({"Pulse voltage (V)": pulse_voltage})
+        self.store_measurement({
+            "Timestamp (s)": pulse_timestamp,
+            "Pulse voltage (V)": pulse_voltage,
+        })
 
         # Disconnect pulse channels
         self.k2700.open_all_channels()
@@ -539,6 +542,7 @@ class MeasurementProcedure(Procedure):
         :DISP:ENAB ON
         :INIT
         """)
+        pulse_timestamp = time()
 
         sleep(t + 5)
 
@@ -554,7 +558,7 @@ class MeasurementProcedure(Procedure):
         """)
 
         # Return pulse-voltage
-        return pulse_voltage
+        return pulse_timestamp, pulse_voltage
 
 
 r"""

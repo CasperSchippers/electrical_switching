@@ -398,10 +398,13 @@ class MeasurementProcedure(Procedure):
             rows=self.row_pulse_lo, columns=pulse["low"])
 
         # Apply pulses
-        pulse_hits_compliance = self.apply_pulses()
+        pulse_timestamp, pulse_hits_compliance = self.apply_pulses()
 
         # Store the measured voltage
-        self.store_measurement({"Pulse hits compliance": pulse_hits_compliance})
+        self.store_measurement({
+            "Timestamp (s)": pulse_timestamp,
+            "Pulse hits compliance": pulse_hits_compliance,
+        })
 
         # Disconnect pulse channels
         self.k2700.open_all_channels()
@@ -521,10 +524,17 @@ class MeasurementProcedure(Procedure):
         # Arm the waveform
         self.k6221.waveform_arm()
 
+        pulse_timestamp = None
+
         # Apply the pulses; each start triggers a single pulse
         for i in range(self.pulse_burst_length):
             sleep(self.pulse_delay)
             self.k6221.waveform_start()
+
+            # Get time stamp for the pulse
+            if pulse_timestamp is None:
+                pulse_timestamp
+
             sleep(self.pulse_length * 1e-3)
 
         # Wait to ensure the pulse is over and the waveform can be aborted
@@ -539,7 +549,7 @@ class MeasurementProcedure(Procedure):
         event_bytes = self.k6221.measurement_events
         pulse_hits_compliance = int(format(event_bytes, "08b")[-4])
 
-        return pulse_hits_compliance
+        return pulse_timestamp, pulse_hits_compliance
 
 
 r"""

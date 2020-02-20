@@ -11,7 +11,9 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
     Parameter, FloatParameter, BooleanParameter, \
     IntegerParameter, ListParameter
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
-from pymeasure.instruments.srs import SR830
+# from pymeasure.instruments.srs import SR830
+
+import zhinst.ziPython as zi
 
 from time import sleep, time
 from pprint import pprint
@@ -197,7 +199,9 @@ class MeasurementProcedure(Procedure):
         self.k2700.close_rows_to_columns(self.row_ground, "all")
 
         # Connect and set up SR830 as probing lock-in amplifier
-        self.lockin = SR830("GPIB::1")
+        # TODO: replace self.lockin = SR830("GPIB::1")
+        self.lockin = zi.ziDAQServer(serveraddress, serverport, device_propsapilevel)
+        self.lockin.setInt('/dev4285/sigins/0/diff', 1)
 
         # Connect and set up Keithley 6221 as pulsing device
         self.k6221 = Keithley6221("GPIB::13::INSTR")
@@ -251,7 +255,12 @@ class MeasurementProcedure(Procedure):
         """
 
         # Disconnect everything
-        self.lockin.sine_voltage = 0
+        # TODO: replace self.lockin.sine_voltage = 0
+        self.lockin.setInt('/dev4285/sigouts/0/on', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/0', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/1', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/2', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/3', 0)
         self.k2700.open_all_channels()
         pass
 
@@ -430,15 +439,15 @@ class MeasurementProcedure(Procedure):
             ])
 
         # Set parameters on lock-in
-        self.lockin.sensitivity = probe["sensitivity"]
-        self.lockin.frequency = probe["frequency"]
-        self.lockin.time_constant = probe["time constant"]
-        self.lockin.sine_voltage = probe["amplitude"]
+        # TODO: replace self.lockin.sensitivity = probe["sensitivity"]
+        # TODO: replace self.lockin.frequency = probe["frequency"]
+        # TODO: replace self.lockin.time_constant = probe["time constant"]
+        # TODO: replace self.lockin.sine_voltage = probe["amplitude"]
 
-        sensitivity = self.lockin.sensitivity
-        frequency = self.lockin.frequency
-        time_constant = self.lockin.time_constant
-        sine_voltage = self.lockin.sine_voltage
+        # TODO: replace sensitivity = self.lockin.sensitivity
+        # TODO: replace frequency = self.lockin.frequency
+        # TODO: replace time_constant = self.lockin.time_constant
+        # TODO: replace sine_voltage = self.lockin.sine_voltage
 
         sensitivity = probe["sensitivity"]
         frequency = probe["frequency"]
@@ -453,7 +462,7 @@ class MeasurementProcedure(Procedure):
             # Wait for value to settle
             sleep(delay)
 
-            x, y = self.lockin.x, self.lockin.y
+            # TODO: replace x, y = self.lockin.x, self.lockin.y
 
             # Probe
             self.store_measurement({
@@ -471,7 +480,7 @@ class MeasurementProcedure(Procedure):
                 break
 
         # Turn off lock-in output
-        self.lockin.sine_voltage = 0
+        # TODO: replace self.lockin.sine_voltage = 0
         sleep(1 + delay)
 
         # # Disconnect probe channels

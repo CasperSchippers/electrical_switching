@@ -14,12 +14,12 @@
 # "duration")
 
 rows:
-  ground: 4
   pulse high: 5
   pulse low : 6
   lock-in input A: 1
   lock-in input B: 2
-  lock-in output: 3
+  lock-in output A: 3
+  lock-in output B: 4
 
 columns:
   pulsing:

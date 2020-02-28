@@ -13,7 +13,8 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 # from pymeasure.instruments.srs import SR830
 
-import zhinst.ziPython as zi
+# import zhinst.ziPython as zi
+import zhinst.utils
 
 from time import sleep, time
 from pprint import pprint
@@ -102,7 +103,7 @@ class MeasurementProcedure(Procedure):
 
     # # probing parameters
     probe_amplitude = FloatParameter("Probe amplitude",
-                                     units="V", default=1)
+                                     units="V", default=5)
     probe_sensitivity = FloatParameter("Probe sensitivity",
                                        units="V", default=1e-1)
     probe_frequency = FloatParameter("Probe frequency",
@@ -110,10 +111,10 @@ class MeasurementProcedure(Procedure):
     probe_time_constant = FloatParameter("Probe time constant",
                                          units="s", default=0.1)
     probe_duration = FloatParameter("Probe duration",
-                                    units="s", default=1)
+                                    units="s", default=10)
 
     probe_series_resistance = FloatParameter("Probe series resistance",
-                                             units="Ohm", default=1)
+                                             units="Ohm", default=1e4)
 
     # Define data columns
     DATA_COLUMNS = [
@@ -139,12 +140,12 @@ class MeasurementProcedure(Procedure):
 
     # pre-define default variables
     config = dict()
-    row_ground = 4
     row_pulse_hi = 5
     row_pulse_lo = 6
     row_lia_inA = 1
     row_lia_inB = 2
-    row_lia_out = 3
+    row_lia_outA = 3
+    row_lia_outB = 4
 
     pulses = {
         "pulse 1": {"high": 1, "low": 2},
@@ -196,11 +197,19 @@ class MeasurementProcedure(Procedure):
         self.k2700 = Keithley2700("GPIB::30::INSTR")
 
         # Connect everything to ground
-        self.k2700.close_rows_to_columns(self.row_ground, "all")
+        self.k2700.open_all_channels()
 
         # Connect and set up SR830 as probing lock-in amplifier
         # TODO: replace self.lockin = SR830("GPIB::1")
-        self.lockin = zi.ziDAQServer(serveraddress, serverport, device_propsapilevel)
+        (daq, device, props) = zhinst.utils.create_api_session("dev4285", 6)
+        self.lockin = daq
+        self.lockin.setInt('/dev4285/sigouts/0/on', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/0', 1)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/1', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/2', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/enables/3', 0)
+
+        self.lockin.setInt('/dev4285/sigouts/0/diff', 1)
         self.lockin.setInt('/dev4285/sigins/0/diff', 1)
 
         # Connect and set up Keithley 6221 as pulsing device
@@ -318,12 +327,12 @@ class MeasurementProcedure(Procedure):
         if "rows" in self.cfg:
             rows_cfg = self.cfg.pop("rows")
 
-            self.row_ground = rows_cfg["ground"]
             self.row_pulse_hi = rows_cfg["pulse high"]
             self.row_pulse_lo = rows_cfg["pulse low"]
             self.row_lia_inA = rows_cfg["lock-in input A"]
             self.row_lia_inB = rows_cfg["lock-in input B"]
-            self.row_lia_out = rows_cfg["lock-in output"]
+            self.row_lia_outA = rows_cfg["lock-in output A"]
+            self.row_lia_outB = rows_cfg["lock-in output B"]
 
         if "columns" in self.cfg:
             cols_cfg = self.cfg.pop("columns")
@@ -414,14 +423,13 @@ class MeasurementProcedure(Procedure):
 
         # Disconnect pulse channels
         self.k2700.open_all_channels()
-        self.k2700.close_rows_to_columns(self.row_ground, "all")
 
     def perform_probing(self, probe_idx):
         """ Perform probing with the parameters associated with probe_idx
 
         :param probe_idx: the index/name for the to-be-used probe
         """
-        log.info("probing with probe {}".format(probe_idx))
+        log.info("Probing with probe {}".format(probe_idx))
 
         # Get probe information associated with probe_idx
         probe = self.probes[probe_idx]
@@ -430,7 +438,7 @@ class MeasurementProcedure(Procedure):
         self.k2700.open_all_channels()
         self.k2700.close_rows_to_columns(
             rows=[
-                self.row_lia_out, self.row_ground,
+                self.row_lia_outA, self.row_lia_outB,
                 self.row_lia_inA, self.row_lia_inB,
             ],
             columns=[
@@ -439,6 +447,21 @@ class MeasurementProcedure(Procedure):
             ])
 
         # Set parameters on lock-in
+        self.lockin.set([
+            ('/dev4285/demods/0/timeconstant', probe["time constant"]),
+            ('/dev4285/oscs/0/freq', probe["frequency"]),
+            ('/dev4285/sigouts/0/range', 20),
+            ('/dev4285/sigouts/0/amplitudes/0', probe["amplitude"]),
+            ('/dev4285/sigins/0/range', probe["sensitivity"]),
+        ])
+
+        time_constant = self.lockin.getDouble('/dev4285/demods/0/timeconstant')
+        frequency = self.lockin.getDouble('/dev4285/oscs/0/freq')
+        sine_voltage = self.lockin.getDouble('/dev4285/sigouts/0/amplitudes/0')
+        sensitivity = self.lockin.getDouble('/dev4285/sigins/0/range')
+
+        delay = time_constant * 5
+
         # TODO: replace self.lockin.sensitivity = probe["sensitivity"]
         # TODO: replace self.lockin.frequency = probe["frequency"]
         # TODO: replace self.lockin.time_constant = probe["time constant"]
@@ -449,13 +472,19 @@ class MeasurementProcedure(Procedure):
         # TODO: replace time_constant = self.lockin.time_constant
         # TODO: replace sine_voltage = self.lockin.sine_voltage
 
-        sensitivity = probe["sensitivity"]
-        frequency = probe["frequency"]
-        time_constant = probe["time constant"]
-        sine_voltage = probe["amplitude"]
+        self.lockin.setInt('/dev4285/sigouts/0/on', 1)
+        sleep(delay)
 
-        delay = probe["time constant"] * 5
-        sleep(1)
+        # sensitivity = probe["sensitivity"]
+        # frequency = probe["frequency"]
+        # time_constant = probe["time constant"]
+        # sine_voltage = probe["amplitude"]
+
+        self.lockin.setInt('/dev4285/sigins/0/autorange', 1)
+
+        sleep(delay * 2)
+
+        self.lockin.sync()
 
         start = time()
         while True:
@@ -463,29 +492,29 @@ class MeasurementProcedure(Procedure):
             sleep(delay)
 
             # TODO: replace x, y = self.lockin.x, self.lockin.y
-
+            sample = self.lockin.getSample("/dev4285/demods/0/sample")
             # Probe
             self.store_measurement({
                 "Probe configuration": probe_idx,
-                "Probe %d x (V)" % (probe_idx): x,
-                "Probe %d y (V)" % (probe_idx): y,
+                "Probe %d x (V)" % (probe_idx): sample["x"][0],
+                "Probe %d y (V)" % (probe_idx): sample["y"][0],
                 "Probe amplitude (V)": sine_voltage,
                 "Probe sensitivity (V)": sensitivity,
                 "Probe frequency (Hz)": frequency,
                 "Probe time constant (s)": time_constant,
             })
 
-            # stop probing after duration
-            if time() - start > probe["duration"]:
+            # stop probing after duration or on should_stop
+            if time() - start > probe["duration"] or self.should_stop():
                 break
 
         # Turn off lock-in output
         # TODO: replace self.lockin.sine_voltage = 0
+        self.lockin.setInt('/dev4285/sigouts/0/on', 0)
         sleep(1 + delay)
 
         # # Disconnect probe channels
         self.k2700.open_all_channels()
-        self.k2700.close_rows_to_columns(self.row_ground, "all")
 
     def store_measurement(self, data_dict=dict()):
         """ Create the data structure and save data to file.

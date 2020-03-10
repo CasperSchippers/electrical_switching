@@ -637,7 +637,9 @@ class MainWindow(ManagedWindow):
             displays=(
                 "pulse_amplitude",
                 "pulse_length",
-            )
+            ),
+            sequencer=True,
+            inputs_in_scrollarea=True,
         )
 
     def queue(self, *args, procedure=None):

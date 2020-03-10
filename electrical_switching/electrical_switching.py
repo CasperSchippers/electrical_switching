@@ -578,6 +578,10 @@ class MeasurementProcedure(Procedure):
 
             sleep(self.pulse_length * 1e-3)
 
+            # Break if aborted
+            if self.should_stop():
+                break
+
         # Wait to ensure the pulse is over and the waveform can be aborted
         sleep(15e-3)
 

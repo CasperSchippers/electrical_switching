@@ -12,6 +12,7 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
     IntegerParameter, ListParameter
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 # from pymeasure.instruments.srs import SR830
+from pymeasure.instruments.oxfordinstruments import ITC503
 
 # import zhinst.ziPython as zi
 import zhinst.utils
@@ -115,6 +116,12 @@ class MeasurementProcedure(Procedure):
 
     probe_series_resistance = FloatParameter("Probe series resistance",
                                              units="Ohm", default=1e4)
+
+    # Temperature controller settings
+    temperature_control = BooleanParameter("Temperature control",
+                                           default=True)
+    temperature = FloatParameter("Temperature Set-point",
+                                 units="K", default=300.)
 
     # Define data columns
     DATA_COLUMNS = [
@@ -221,6 +228,14 @@ class MeasurementProcedure(Procedure):
         self.k6221.waveform_abort()
         self.k6221.source_enabled = False
 
+        # Connect and set up temperature controller
+        log.info("Connecting to and setting up temperature controller")
+        self.temperatureController = ITC503("GPIB::24")
+        self.temperatureController.control_mode = "RU"
+        self.temperatureController.heater_gas_mode = "AUTO"
+        self.temperatureController.auto_pid = True
+        self.temperatureController.sweep_status = 0
+
     # Define measurement procedure
     def execute(self):
         """ Execute the actual measurement. Here only the global outline of
@@ -228,6 +243,25 @@ class MeasurementProcedure(Procedure):
         helper functions (in the helpers section of this class).
         """
 
+        # Set (and wait for) the temperature
+        if self.temperature_control:
+            log.info(f"Setting temperature to {self.temperature} K.")
+            self.temperatureController.temperature_setpoint = self.temperature
+
+            log.info("Waiting for temperature.")
+            for i in range(2):
+                try:
+                    self.temperatureController.wait_for_temperature(
+                        error=self.temperature * 0.005,
+                        timeout=3600 * 4,
+                        should_stop=self.should_stop)
+                except ValueError:
+                    log.error(
+                        "Could not complete wait for temperature due to ValueError" +
+                        f" Attempt #{i + 1}."
+                    )
+
+        # Perform the measurement
         for n in range(self.number_of_repeats):
             for i, pulse_idx in enumerate(self.pulse_sequence):
 
@@ -548,6 +582,19 @@ class MeasurementProcedure(Procedure):
         # Fill the appropriate column with data
         data.update(data_dict)
 
+        # Grab temperature if necessary
+        if np.isnan(data["Temperature (K)"]):
+            for i in range(2):
+                try:
+                    temperature = self.temperatureController.temperature_1
+                except ValueError:
+                    log.error(
+                        f"Could not get temperature due to ValueError. Attempt #{i + 1}."
+                    )
+                else:
+                    data["Temperature (K)"] = temperature
+                    break
+
         # Write the data
         self.emit("results", data)
 
@@ -638,6 +685,8 @@ class MainWindow(ManagedWindow):
                 "probe_time_constant",
                 "probe_duration",
                 "probe_series_resistance",
+                "temperature_control",
+                "temperature",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",

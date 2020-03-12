@@ -198,7 +198,7 @@ class MeasurementProcedure(Procedure):
 
         # Enable to set text on the display of the Keithley 2700
         self.k2700.text_enabled = True
-        self.k2700.display_text = "Starting"
+        self.k2700.display_text = "STARTING"
 
         # Connect everything to ground
         self.k2700.open_all_channels()
@@ -276,7 +276,7 @@ class MeasurementProcedure(Procedure):
         self.lockin.setInt('/dev4285/sigouts/0/enables/3', 0)
 
         self.k2700.open_all_channels()
-        self.k2700.display_text = "Finished!!!!"
+        self.k2700.display_text = "FINISHED!!!!"
 
     r"""
          _    _   ______   _        _____    ______   _____     _____
@@ -406,7 +406,7 @@ class MeasurementProcedure(Procedure):
         :param puls_idx: the index/name for the to-be-used probe
         """
         log.info("Pulsing with pulse {}".format(pulse_idx))
-        self.k2700.display_text = f"Pulse {pulse_idx}, {self.last_pulse_number:3d}"
+        self.k2700.display_text = f"PULSE {pulse_idx}, {self.last_pulse_number:3d}"
 
         # Get pulse information associated with pulse_idx
         pulse = self.pulses[pulse_idx]
@@ -436,7 +436,7 @@ class MeasurementProcedure(Procedure):
         :param probe_idx: the index/name for the to-be-used probe
         """
         log.info("Probing with probe {}".format(probe_idx))
-        self.k2700.display_text = f"Probe {probe_idx}, {self.last_pulse_number:3d}"
+        self.k2700.display_text = f"PROBE {probe_idx}, {self.last_pulse_number:3d}"
 
         # Get probe information associated with probe_idx
         probe = self.probes[probe_idx]

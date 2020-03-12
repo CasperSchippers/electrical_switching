@@ -458,7 +458,7 @@ class MeasurementProcedure(Procedure):
             ('/dev4285/demods/0/timeconstant', probe["time constant"]),
             ('/dev4285/oscs/0/freq', probe["frequency"]),
             ('/dev4285/sigouts/0/range', 20),
-            ('/dev4285/sigouts/0/amplitudes/0', probe["amplitude"]),
+            ('/dev4285/sigouts/0/amplitudes/0', probe["amplitude"] * np.sqrt(2)),
             ('/dev4285/sigins/0/range', probe["sensitivity"]),
         ])
 

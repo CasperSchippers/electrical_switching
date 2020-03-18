@@ -508,7 +508,7 @@ class MeasurementProcedure(Procedure):
 
         self.lockin.setInt("/dev4285/sigins/0/autorange", 1)
 
-        sleep(delay * 2)
+        sleep(delay * 3)
 
         self.lockin.sync()
 
@@ -676,7 +676,10 @@ class MainWindow(ManagedWindow):
             y_axis="Probe 1 x (V)",
             displays=(
                 "pulse_amplitude",
+                "pulse_compliance",
                 "pulse_length",
+                "pulse_burst_length",
+                "temperature",
             ),
             sequencer=True,
             inputs_in_scrollarea=True,

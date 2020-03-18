@@ -55,6 +55,7 @@ r"""
 |_|      |_|  \_\  \____/   \_____| |______| |_____/   \____/  |_|  \_\ |______|
 
 """
+# TODO: more complicated pulsing and probing schemes
 
 
 class MeasurementProcedure(Procedure):

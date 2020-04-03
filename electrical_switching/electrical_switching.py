@@ -412,8 +412,8 @@ class MeasurementProcedure(Procedure):
 
         for i, (probe, probe_params) in enumerate(self.probes.items(), 1):
 
-                self.probe_name_mapping[i] = probe
-                new_probes[i] = probe_params
+            self.probe_name_mapping[i] = probe
+            new_probes[i] = probe_params
 
         self.probes = new_probes
 

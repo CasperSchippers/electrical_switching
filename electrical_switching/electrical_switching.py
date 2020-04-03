@@ -518,28 +518,40 @@ class MeasurementProcedure(Procedure):
         ])
 
         time_constant = self.lockin.getDouble("/dev4285/demods/0/timeconstant")
+        filter_order = self.lockin.getInt('/dev4285/demods/0/order')
         frequency = self.lockin.getDouble("/dev4285/oscs/0/freq")
         sine_voltage = self.lockin.getDouble("/dev4285/sigouts/0/amplitudes/0") / np.sqrt(2)
         sensitivity = self.lockin.getDouble("/dev4285/sigins/0/range")
 
-        delay = time_constant * 5
+        # Calculate the 90% and 99.9% settling times
+        delay_90 = time_constant * (1.93 * filter_order**0.85 + 0.38)
+        delay_99 = time_constant * (2.74 * filter_order**0.79 + 1.89)
 
         self.lockin.setInt("/dev4285/sigouts/0/on", 1)
-        sleep(delay)
+        sleep(delay_90 + 1)
 
+        # Let input-auto-ranger do it's work
         self.lockin.setInt("/dev4285/sigins/0/autorange", 1)
 
-        sleep(delay * 3)
+        # A settling time is required before the sync is called
+        sleep(delay_90 + 1)
 
         self.lockin.sync()
 
+        # Allow the value to settle before starting the readings
+        sleep(delay_99 - delay_90)
+
+        # Start timing
         start = time()
+
         while True:
             # Wait for value to settle
-            sleep(delay)
+            sleep(delay_90)
 
-            sample = self.lockin.getSample("/dev4285/demods/0/sample")
             # Probe
+            sample = self.lockin.getSample("/dev4285/demods/0/sample")
+
+            # Store the values
             self.store_measurement({
                 "Probe configuration": probe_idx,
                 "Probe %d x (V)" % (probe_idx): sample["x"][0],
@@ -556,7 +568,7 @@ class MeasurementProcedure(Procedure):
 
         # Turn off lock-in output
         self.lockin.setInt("/dev4285/sigouts/0/on", 0)
-        sleep(1 + delay)
+        sleep(1)
 
         # # Disconnect probe channels
         self.k2700.open_all_channels()

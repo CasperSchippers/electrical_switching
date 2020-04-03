@@ -102,8 +102,6 @@ class MeasurementProcedure(Procedure):
     # probing parameters
     probe_amplitude = FloatParameter("Probe amplitude",
                                      units="V", default=5)
-    probe_sensitivity = FloatParameter("Probe sensitivity",
-                                       units="V", default=1e-1)
     probe_frequency = FloatParameter("Probe frequency",
                                      units="Hz", default=79)
     probe_time_constant = FloatParameter("Probe time constant",
@@ -514,40 +512,40 @@ class MeasurementProcedure(Procedure):
             ("/dev4285/oscs/0/freq", probe["frequency"]),
             ("/dev4285/sigouts/0/range", 20),
             ("/dev4285/sigouts/0/amplitudes/0", probe["amplitude"] * np.sqrt(2)),
-            ("/dev4285/sigins/0/range", probe["sensitivity"]),
+            ("/dev4285/sigins/0/range", 3),
         ])
 
         time_constant = self.lockin.getDouble("/dev4285/demods/0/timeconstant")
         filter_order = self.lockin.getInt('/dev4285/demods/0/order')
         frequency = self.lockin.getDouble("/dev4285/oscs/0/freq")
         sine_voltage = self.lockin.getDouble("/dev4285/sigouts/0/amplitudes/0") / np.sqrt(2)
-        sensitivity = self.lockin.getDouble("/dev4285/sigins/0/range")
 
-        # Calculate the 90% and 99.9% settling times
+        # Calculate the 90.0% and 99.9% settling times
         delay_90 = time_constant * (1.93 * filter_order**0.85 + 0.38)
         delay_99 = time_constant * (2.74 * filter_order**0.79 + 1.89)
 
         self.lockin.setInt("/dev4285/sigouts/0/on", 1)
-        sleep(delay_90 + 1)
+        sleep(1)
 
         # Let input-auto-ranger do it's work
         self.lockin.setInt("/dev4285/sigins/0/autorange", 1)
+        sleep(1)
 
-        # A settling time is required before the sync is called
-        sleep(delay_90 + 1)
+        # Get the used range / sensitivity
+        sensitivity = self.lockin.getDouble("/dev4285/sigins/0/range")
 
+        # Waiting a settling time is required before sync is called
+        # to ensure all parameters are communicated correctly
+        sleep(delay_90)
         self.lockin.sync()
 
         # Allow the value to settle before starting the readings
-        sleep(delay_99 - delay_90)
+        sleep(delay_99)
 
         # Start timing
         start = time()
 
         while True:
-            # Wait for value to settle
-            sleep(delay_90)
-
             # Probe
             sample = self.lockin.getSample("/dev4285/demods/0/sample")
 
@@ -565,6 +563,9 @@ class MeasurementProcedure(Procedure):
             # stop probing after duration or on should_stop
             if time() - start > probe["duration"] or self.should_stop():
                 break
+
+            # Wait for the next value to settle
+            sleep(delay_90)
 
         # Turn off lock-in output
         self.lockin.setInt("/dev4285/sigouts/0/on", 0)

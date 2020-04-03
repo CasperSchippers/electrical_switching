@@ -228,6 +228,15 @@ class MeasurementProcedure(Procedure):
         self.lockin.setInt('/dev4285/demods/2/enable', 0)
         self.lockin.setInt('/dev4285/demods/3/enable', 0)
 
+        self.lockin.setInt('/dev4285/demods/0/order', 3)
+        self.lockin.setInt('/dev4285/demods/0/oscselect', 0)
+        self.lockin.setInt('/dev4285/demods/0/adcselect', 0)
+        self.lockin.setDouble('/dev4285/demods/0/harmonic', 1)
+        self.lockin.setDouble('/dev4285/demods/0/phaseshift', 0)
+        self.lockin.setInt('/dev4285/sigins/0/float', 0)
+        self.lockin.setInt('/dev4285/sigins/0/imp50', 0)
+        self.lockin.setInt('/dev4285/sigouts/0/imp50', 0)
+
         # Connect and set up Keithley 6221 as pulsing device
         log.info("Connecting to and setting up pulse source")
         self.k6221 = Keithley6221("GPIB::13::INSTR")

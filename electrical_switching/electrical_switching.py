@@ -248,7 +248,7 @@ class MeasurementProcedure(Procedure):
             self.temperatureController.temperature_setpoint = self.temperature
 
             log.info("Waiting for temperature.")
-            for i in range(2):
+            for i in range(8):
                 try:
                     self.temperatureController.wait_for_temperature(
                         error=self.temperature * 0.005,

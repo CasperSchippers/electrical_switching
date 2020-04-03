@@ -73,28 +73,28 @@ class MeasurementProcedure(Procedure):
     AAB = Parameter("Measurement date", default=date)
 
     AAC_folder = Parameter("Measurement folder",
-                           default="D:\\data\\temp\\")
+                           default="E:\\data\\temp\\")
     AAD_filename_base = Parameter("Measurement filename base",
                                   default="electrical_switching")
-    AAE_yaml_config_file = Parameter("YAML configuration file",
+    AAE_yaml_config_file = Parameter("Measurement configuration file",
                                      default="config.yml")
 
     # general parameters
     number_of_repeats = IntegerParameter("Number of repeats",
                                          default=8)
-    probe_delay = FloatParameter("pulse - probe delay", units="s",
+    probe_delay = FloatParameter("Probe delay after pulse", units="s",
                                  default=1)
 
-    # # pulsing parameters
+    # pulsing parameters
     pulse_amplitude = FloatParameter("Pulse amplitude",
                                      units="A", default=0.1)
     pulse_compliance = FloatParameter("Pulse compliance",
                                       units="V", default=10)
     pulse_length = FloatParameter("Pulse length",
                                   units="ms", default=3)
-    pulse_delay = FloatParameter("Delay between pulses within burst",
+    pulse_delay = FloatParameter("Pulse delay within burst",
                                  units="s", default=5)
-    pulse_burst_length = IntegerParameter("Number of pulses per burst",
+    pulse_burst_length = IntegerParameter("Pulse number per burst",
                                           default=1)
     pulse_number_of_bursts = IntegerParameter("Number of bursts",
                                               default=1)
@@ -115,8 +115,8 @@ class MeasurementProcedure(Procedure):
     # Temperature controller settings
     temperature_control = BooleanParameter("Temperature control",
                                            default=True)
-    temperature = FloatParameter("Temperature Set-point",
-                                 units="K", default=300.)
+    temperature_sp = FloatParameter("Temperature set-point",
+                                    units="K", default=300.)
 
     # Define data columns
     DATA_COLUMNS = [
@@ -260,14 +260,14 @@ class MeasurementProcedure(Procedure):
 
         # Set (and wait for) the temperature
         if self.temperature_control:
-            log.info(f"Setting temperature to {self.temperature} K.")
-            self.temperatureController.temperature_setpoint = self.temperature
+            log.info(f"Setting temperature to {self.temperature_sp} K.")
+            self.temperatureController.temperature_setpoint = self.temperature_sp
 
             log.info("Waiting for temperature.")
             for i in range(8):
                 try:
                     self.temperatureController.wait_for_temperature(
-                        error=self.temperature * 0.005,
+                        error=self.temperature_sp * 0.005,
                         timeout=3600 * 4,
                         should_stop=self.should_stop)
                 except ValueError:
@@ -279,6 +279,9 @@ class MeasurementProcedure(Procedure):
         # Perform the measurement
         for n in range(self.number_of_repeats):
             for i, pulse_idx in enumerate(self.pulse_sequence):
+                # Check for stop command
+                if self.should_stop():
+                    return
 
                 # Apply pulse sequence
                 self.last_pulse_number += 1
@@ -509,14 +512,16 @@ class MeasurementProcedure(Procedure):
             ("/dev4285/demods/0/timeconstant", probe["time constant"]),
             ("/dev4285/oscs/0/freq", probe["frequency"]),
             ("/dev4285/sigouts/0/range", 20),
-            ("/dev4285/sigouts/0/amplitudes/0", probe["amplitude"] * np.sqrt(2)),
+            ("/dev4285/sigouts/0/amplitudes/0",
+             probe["amplitude"] * np.sqrt(2)),
             ("/dev4285/sigins/0/range", 3),
         ])
 
         time_constant = self.lockin.getDouble("/dev4285/demods/0/timeconstant")
         filter_order = self.lockin.getInt('/dev4285/demods/0/order')
         frequency = self.lockin.getDouble("/dev4285/oscs/0/freq")
-        sine_voltage = self.lockin.getDouble("/dev4285/sigouts/0/amplitudes/0") / np.sqrt(2)
+        sine_voltage = self.lockin.getDouble(
+            "/dev4285/sigouts/0/amplitudes/0") / np.sqrt(2)
 
         # Calculate the 90.0% and 99.9% settling times
         delay_90 = time_constant * (1.93 * filter_order**0.85 + 0.38)
@@ -699,13 +704,12 @@ class MainWindow(ManagedWindow):
                 "pulse_number_of_bursts",
                 "probe_delay",
                 "probe_amplitude",
-                "probe_sensitivity",
                 "probe_frequency",
                 "probe_time_constant",
                 "probe_duration",
                 "probe_series_resistance",
                 "temperature_control",
-                "temperature",
+                "temperature_sp",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",
@@ -714,7 +718,7 @@ class MainWindow(ManagedWindow):
                 "pulse_compliance",
                 "pulse_length",
                 "pulse_burst_length",
-                "temperature",
+                "temperature_sp",
             ),
             sequencer=True,
             inputs_in_scrollarea=True,

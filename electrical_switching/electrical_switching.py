@@ -126,6 +126,8 @@ class MeasurementProcedure(Procedure):
         "Temperature (K)",
         "Pulse number",
         "Pulse configuration",
+        "Pulse amplitude (A)",
+        "Pulse compliance (V)",
         "Pulse hits compliance",
         "Probe configuration",
         "Probe amplitude (V)",
@@ -470,12 +472,14 @@ class MeasurementProcedure(Procedure):
         )
 
         # Apply pulses
-        pulse_timestamp, pulse_hits_compliance = self.apply_pulses()
+        pulse_timestamp, amplitude, compliance, hits_compliance = self.apply_pulses()
 
         # Store the measured voltage
         self.store_measurement({
             "Timestamp (s)": pulse_timestamp,
-            "Pulse hits compliance": pulse_hits_compliance,
+            "Pulse amplitude (A)": amplitude,
+            "Pulse compliance (V)": compliance,
+            "Pulse hits compliance": hits_compliance,
         })
 
         # Disconnect pulse channels
@@ -570,6 +574,8 @@ class MeasurementProcedure(Procedure):
             "Temperature (K)": np.nan,
             "Pulse number": self.last_pulse_number,
             "Pulse configuration": self.last_pulse_config,
+            "Pulse amplitude (A)": np.nan,
+            "Pulse compliance (V)": np.nan,
             "Pulse hits compliance": np.nan,
             "Probe configuration": np.nan,
             "Probe amplitude (V)": np.nan,
@@ -649,7 +655,8 @@ class MeasurementProcedure(Procedure):
         event_bytes = self.k6221.measurement_events
         pulse_hits_compliance = int(format(event_bytes, "08b")[-4])
 
-        return pulse_timestamp, pulse_hits_compliance
+        return pulse_timestamp, self.pulse_amplitude,\
+            self.pulse_compliance, pulse_hits_compliance
 
 
 r"""

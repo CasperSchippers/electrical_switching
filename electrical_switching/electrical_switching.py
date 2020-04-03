@@ -499,7 +499,7 @@ class MeasurementProcedure(Procedure):
 
         time_constant = self.lockin.getDouble("/dev4285/demods/0/timeconstant")
         frequency = self.lockin.getDouble("/dev4285/oscs/0/freq")
-        sine_voltage = self.lockin.getDouble("/dev4285/sigouts/0/amplitudes/0")
+        sine_voltage = self.lockin.getDouble("/dev4285/sigouts/0/amplitudes/0") / np.sqrt(2)
         sensitivity = self.lockin.getDouble("/dev4285/sigins/0/range")
 
         delay = time_constant * 5

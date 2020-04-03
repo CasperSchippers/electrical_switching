@@ -442,8 +442,6 @@ class MeasurementProcedure(Procedure):
         for probe_params in self.probes.values():
             if "amplitude" not in probe_params:
                 probe_params["amplitude"] = self.probe_amplitude
-            if "sensitivity" not in probe_params:
-                probe_params["sensitivity"] = self.probe_sensitivity
             if "frequency" not in probe_params:
                 probe_params["frequency"] = self.probe_frequency
             if "time constant" not in probe_params:

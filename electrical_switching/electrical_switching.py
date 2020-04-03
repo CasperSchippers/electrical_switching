@@ -118,6 +118,16 @@ class MeasurementProcedure(Procedure):
     temperature = FloatParameter("Temperature Set-point",
                                  units="K", default=300.)
 
+    # Magnetic field control
+    field_control = BooleanParameter("Magnetic field control",
+                                     default=False)
+    field = FloatParameter("Magnetic field Set-point",
+                           units="mT", default=0.)
+    field_calibration = FloatParameter("Magnetic field calibration",
+                                       units="mT/A", default=13.69)
+    field_ramp_rate = FloatParameter("Magnetic field ramp rate",
+                                     units="mT/s", default=2.0)
+
     # Define data columns
     DATA_COLUMNS = [
         "Timestamp (s)",

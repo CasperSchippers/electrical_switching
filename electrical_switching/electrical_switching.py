@@ -247,9 +247,11 @@ class MeasurementProcedure(Procedure):
         log.info("Connecting to and setting up temperature controller")
         self.temperatureController = ITC503("GPIB::24")
         self.temperatureController.control_mode = "RU"
-        self.temperatureController.heater_gas_mode = "AUTO"
-        self.temperatureController.auto_pid = True
-        self.temperatureController.sweep_status = 0
+
+        if self.temperature_control:
+            self.temperatureController.heater_gas_mode = "AUTO"
+            self.temperatureController.auto_pid = True
+            self.temperatureController.sweep_status = 0
 
     # Define measurement procedure
     def execute(self):

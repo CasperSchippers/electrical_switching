@@ -123,7 +123,7 @@ class MeasurementProcedure(Procedure):
     field_control = BooleanParameter("Magnetic field control",
                                      default=False)
     field_mT = FloatParameter("Magnetic field Set-point",
-                              units="mT", default=0.)
+                              units="mT", default=0., minimum=0, maximum=550)
     field_calibration = FloatParameter("Magnetic field calibration",
                                        units="mT/A", default=13.69)
     field_ramp_rate = FloatParameter("Magnetic field ramp rate",
@@ -276,6 +276,7 @@ class MeasurementProcedure(Procedure):
 
         self.field = self.field_mT * 1e-3
         self.field_current = self.field_mT / self.field_calibration
+        assert self.field_current < 40.5, "Too high magnet current"
 
     # Define measurement procedure
     def execute(self):

@@ -758,6 +758,7 @@ class MainWindow(ManagedWindow):
                 "pulse_length",
                 "pulse_burst_length",
                 "temperature_sp",
+                "field_mT",
             ),
             sequencer=True,
             inputs_in_scrollarea=True,

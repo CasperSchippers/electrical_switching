@@ -11,6 +11,7 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
     Parameter, FloatParameter, BooleanParameter, IntegerParameter
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.oxfordinstruments import ITC503
+from pymeasure.instruments.deltaelektronika import SM7045D
 
 import zhinst.utils
 
@@ -121,17 +122,19 @@ class MeasurementProcedure(Procedure):
     # Magnetic field control
     field_control = BooleanParameter("Magnetic field control",
                                      default=False)
-    field = FloatParameter("Magnetic field Set-point",
-                           units="mT", default=0.)
+    field_mT = FloatParameter("Magnetic field Set-point",
+                              units="mT", default=0.)
     field_calibration = FloatParameter("Magnetic field calibration",
                                        units="mT/A", default=13.69)
     field_ramp_rate = FloatParameter("Magnetic field ramp rate",
-                                     units="mT/s", default=2.0)
+                                     units="A/s", default=0.1)
 
     # Define data columns
     DATA_COLUMNS = [
         "Timestamp (s)",
         "Temperature (K)",
+        "Magnetic field (T)",
+        "Magnetic field current (A)",
         "Pulse number",
         "Pulse configuration",
         "Pulse amplitude (A)",
@@ -263,6 +266,17 @@ class MeasurementProcedure(Procedure):
             self.temperatureController.auto_pid = True
             self.temperatureController.sweep_status = 0
 
+        # Connect and set up magnet power supply (Delta Elektronika)
+        log.info("Connecting to magnet power supply")
+        self.source = SM7045D("GPIB::8")
+        if self.field_control:
+            log.info("Ramping magnet power supply to zero and enabling it")
+            self.source.ramp_to_zero(self.mag_ramp_rate)
+            self.source.enable()
+
+        self.field = self.field_mT * 1e-3
+        self.field_current = self.field_mT / self.field_calibration
+
     # Define measurement procedure
     def execute(self):
         """ Execute the actual measurement. Here only the global outline of
@@ -284,9 +298,13 @@ class MeasurementProcedure(Procedure):
                         should_stop=self.should_stop)
                 except ValueError:
                     log.error(
-                        "Could not complete wait for temperature due to ValueError" +
+                        "Could not complete wait for temperature due to ValueError"
                         f" Attempt #{i + 1}."
                     )
+
+        if self.field_control:
+            log.info("Ramping magnetic field.")
+            self.source.ramp_to_current(self.field_current, self.field_ramp_rate)
 
         # Perform the measurement
         for n in range(self.number_of_repeats):
@@ -331,6 +349,11 @@ class MeasurementProcedure(Procedure):
         """ Wrap up the measurement.
         """
         log.info("Shutting down. Setting devices in a safe state.")
+
+        # Ramp field to zero
+        if self.field_control:
+            log.info("Ramping magnetic field to zero.")
+            self.source.ramp_to_zero(self.field_ramp_rate)
 
         # Disconnect everything
         self.lockin.setInt("/dev4285/sigouts/0/on", 0)
@@ -600,6 +623,8 @@ class MeasurementProcedure(Procedure):
         data = {
             "Timestamp (s)": time(),
             "Temperature (K)": np.nan,
+            "Magnetic field (T)": self.field,
+            "Magnetic field current (A)": self.field_current,
             "Pulse number": self.last_pulse_number,
             "Pulse configuration": self.last_pulse_config,
             "Pulse amplitude (A)": np.nan,
@@ -722,6 +747,8 @@ class MainWindow(ManagedWindow):
                 "probe_series_resistance",
                 "temperature_control",
                 "temperature_sp",
+                "field_control",
+                "field",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",

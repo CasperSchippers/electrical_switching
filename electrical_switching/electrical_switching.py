@@ -271,7 +271,7 @@ class MeasurementProcedure(Procedure):
         self.source = SM7045D("GPIB::8")
         if self.field_control:
             log.info("Ramping magnet power supply to zero and enabling it")
-            self.source.ramp_to_zero(self.mag_ramp_rate)
+            self.source.ramp_to_zero(self.field_ramp_rate)
             self.source.enable()
 
         self.field = self.field_mT * 1e-3
@@ -748,7 +748,7 @@ class MainWindow(ManagedWindow):
                 "temperature_control",
                 "temperature_sp",
                 "field_control",
-                "field",
+                "field_mT",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",

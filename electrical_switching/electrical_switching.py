@@ -12,6 +12,7 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.oxfordinstruments import ITC503
 from pymeasure.instruments.deltaelektronika import SM7045D
+import pyvisa
 
 import zhinst.utils
 
@@ -258,10 +259,17 @@ class MeasurementProcedure(Procedure):
 
         # Connect and set up temperature controller
         log.info("Connecting to and setting up temperature controller")
-        self.temperatureController = ITC503("GPIB::24")
-        self.temperatureController.control_mode = "RU"
+        try:
+            self.temperatureController = ITC503("GPIB::24", max_temperature=320)
+        except pyvisa.errors.VisaIOError:
+            self.temperatureController = None
 
-        if self.temperature_control:
+        if self.temperature_control and self.temperatureController is None:
+            log.error("Could not connect to ITC503. Fix this issue")
+
+        if self.temperature_control and self.temperatureController is not None:
+            self.temperatureController.control_mode = "RU"
+
             self.temperatureController.heater_gas_mode = "AUTO"
             self.temperatureController.auto_pid = True
             self.temperatureController.sweep_status = 0
@@ -286,22 +294,23 @@ class MeasurementProcedure(Procedure):
         """
 
         # Set (and wait for) the temperature
-        if self.temperature_control:
+        if self.temperature_control and self.temperatureController is not None:
             log.info(f"Setting temperature to {self.temperature_sp} K.")
             self.temperatureController.temperature_setpoint = self.temperature_sp
 
             log.info("Waiting for temperature.")
-            for i in range(8):
-                try:
-                    self.temperatureController.wait_for_temperature(
-                        error=self.temperature_sp * 0.005,
-                        timeout=3600 * 4,
-                        should_stop=self.should_stop)
-                except ValueError:
-                    log.error(
-                        "Could not complete wait for temperature due to ValueError"
-                        f" Attempt #{i + 1}."
-                    )
+            try:
+                self.temperatureController.wait_for_temperature(
+                    error=self.temperature_sp * 0.005,
+                    timeout=3600 * 4,
+                    should_stop=self.should_stop,
+                    max_comm_errors=64)
+            except ValueError:
+                log.error(
+                    "Could not complete wait for temperature due to too many comm_errors"
+                )
+            except pyvisa.errors.VisaIOError:
+                self.temperatureController = None
 
         if self.field_control:
             log.info("Ramping magnetic field.")
@@ -644,7 +653,7 @@ class MeasurementProcedure(Procedure):
         data.update(data_dict)
 
         # Grab temperature if necessary
-        if np.isnan(data["Temperature (K)"]):
+        if np.isnan(data["Temperature (K)"]) and self.temperatureController is not None:
             for i in range(2):
                 try:
                     temperature = self.temperatureController.temperature_1
@@ -652,6 +661,9 @@ class MeasurementProcedure(Procedure):
                     log.error(
                         f"Could not get temperature due to ValueError. Attempt #{i + 1}."
                     )
+                except pyvisa.errors.VisaIOError:
+                    self.temperatureController = None
+                    break
                 else:
                     data["Temperature (K)"] = temperature
                     break

@@ -60,6 +60,7 @@ r"""
 # TODO: more complicated pulsing and probing schemes
 
 
+# noinspection PyTypeChecker
 class MeasurementProcedure(Procedure):
     r"""
      _____        _____            __  __ ______ _______ ______ _____   _____
@@ -500,7 +501,7 @@ class MeasurementProcedure(Procedure):
     def perform_pulsing(self, pulse_idx):
         """ Perform pulsing with the parameters associated with puls_idx
 
-        :param puls_idx: the index/name for the to-be-used probe
+        :param pulse_idx: the index/name for the to-be-used probe
         """
         log.info("Pulsing with pulse {}".format(pulse_idx))
         self.k2700.display_text = f"PULSE {pulse_idx}, {self.last_pulse_number:3d}"
@@ -622,14 +623,13 @@ class MeasurementProcedure(Procedure):
         # # Disconnect probe channels
         self.k2700.open_all_channels()
 
-    def store_measurement(self, data_dict=dict()):
+    def store_measurement(self, data_dict=None):
         """ Create the data structure and save data to file.
 
         :param data_dict: a dictionary containing the data to be saved.
             Keys in this dictionary overwrite the auto-generated values.
         """
 
-        # Create empty data dictionary
         data = {
             "Timestamp (s)": time(),
             "Temperature (K)": np.nan,
@@ -650,7 +650,8 @@ class MeasurementProcedure(Procedure):
             data[key] = np.nan
 
         # Fill the appropriate column with data
-        data.update(data_dict)
+        if data_dict is None:
+            data.update(data_dict)
 
         # Grab temperature if necessary
         if np.isnan(data["Temperature (K)"]) and self.temperatureController is not None:

@@ -84,13 +84,13 @@ class MeasurementProcedure(Procedure):
 
     # general parameters
     number_of_repeats = IntegerParameter("Number of repeats",
-                                         default=8)
+                                         default=4)
     probe_delay = FloatParameter("Probe delay after pulse", units="s",
-                                 default=1)
+                                 default=5)
 
     # pulsing parameters
     pulse_amplitude = FloatParameter("Pulse amplitude",
-                                     units="A", default=0.1)
+                                     units="A", default=0.02)
     pulse_compliance = FloatParameter("Pulse compliance",
                                       units="V", default=10)
     pulse_length = FloatParameter("Pulse length",
@@ -100,7 +100,7 @@ class MeasurementProcedure(Procedure):
     pulse_burst_length = IntegerParameter("Pulse number per burst",
                                           default=1)
     pulse_number_of_bursts = IntegerParameter("Number of bursts",
-                                              default=1)
+                                              default=4)
 
     # probing parameters
     probe_amplitude = FloatParameter("Probe amplitude",
@@ -110,14 +110,14 @@ class MeasurementProcedure(Procedure):
     probe_time_constant = FloatParameter("Probe time constant",
                                          units="s", default=0.1)
     probe_duration = FloatParameter("Probe duration",
-                                    units="s", default=10)
+                                    units="s", default=15)
 
     probe_series_resistance = FloatParameter("Probe series resistance",
                                              units="Ohm", default=2e4)
 
     # Temperature controller settings
     temperature_control = BooleanParameter("Temperature control",
-                                           default=True)
+                                           default=False)
     temperature_sp = FloatParameter("Temperature set-point",
                                     units="K", default=300.)
 

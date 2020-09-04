@@ -10,11 +10,10 @@ from pymeasure.display.windows import ManagedWindow
 from pymeasure.experiment import Procedure, Results, unique_filename, \
     Parameter, FloatParameter, BooleanParameter, IntegerParameter
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
-from pymeasure.instruments.oxfordinstruments import ITC503
-from pymeasure.instruments.deltaelektronika import SM7045D
-import pyvisa
+from pymeasure.instruments.lakeshore import LakeShore331
 
 import zhinst.utils
+from FieldFileReader import FieldFileReader
 
 from time import sleep, time
 from pathlib import Path
@@ -114,22 +113,6 @@ class MeasurementProcedure(Procedure):
 
     probe_series_resistance = FloatParameter("Probe series resistance",
                                              units="Ohm", default=2e4)
-
-    # Temperature controller settings
-    temperature_control = BooleanParameter("Temperature control",
-                                           default=False)
-    temperature_sp = FloatParameter("Temperature set-point",
-                                    units="K", default=300.)
-
-    # Magnetic field control
-    field_control = BooleanParameter("Magnetic field control",
-                                     default=False)
-    field_mT = FloatParameter("Magnetic field Set-point",
-                              units="mT", default=0., minimum=0, maximum=550)
-    field_calibration = FloatParameter("Magnetic field calibration",
-                                       units="mT/A", default=13.69)
-    field_ramp_rate = FloatParameter("Magnetic field ramp rate",
-                                     units="A/s", default=0.1)
 
     # Define data columns
     DATA_COLUMNS = [
@@ -258,34 +241,8 @@ class MeasurementProcedure(Procedure):
         self.k6221.waveform_abort()
         self.k6221.source_enabled = False
 
-        # Connect and set up temperature controller
-        log.info("Connecting to and setting up temperature controller")
-        try:
-            self.temperatureController = ITC503("GPIB::24", max_temperature=320)
-        except pyvisa.errors.VisaIOError:
-            self.temperatureController = None
-
-        if self.temperature_control and self.temperatureController is None:
-            log.error("Could not connect to ITC503. Fix this issue")
-
-        if self.temperature_control and self.temperatureController is not None:
-            self.temperatureController.control_mode = "RU"
-
-            self.temperatureController.heater_gas_mode = "AUTO"
-            self.temperatureController.auto_pid = True
-            self.temperatureController.sweep_status = 0
-
-        # Connect and set up magnet power supply (Delta Elektronika)
-        log.info("Connecting to magnet power supply")
-        self.source = SM7045D("GPIB::8")
-        if self.field_control:
-            log.info("Ramping magnet power supply to zero and enabling it")
-            self.source.ramp_to_zero(self.field_ramp_rate)
-            self.source.enable()
-
-        self.field = self.field_mT * 1e-3
-        self.field_current = self.field_mT / self.field_calibration
-        assert self.field_current < 40.5, "Too high magnet current"
+        self.temperature_controller = LakeShore331("GPIB::01")
+        self.field_reader = FieldFileReader("")
 
     # Define measurement procedure
     def execute(self):
@@ -293,29 +250,6 @@ class MeasurementProcedure(Procedure):
         the measurement is defined, all the actual activities are handled by
         helper functions (in the helpers section of this class).
         """
-
-        # Set (and wait for) the temperature
-        if self.temperature_control and self.temperatureController is not None:
-            log.info(f"Setting temperature to {self.temperature_sp} K.")
-            self.temperatureController.temperature_setpoint = self.temperature_sp
-
-            log.info("Waiting for temperature.")
-            try:
-                self.temperatureController.wait_for_temperature(
-                    error=self.temperature_sp * 0.005,
-                    timeout=3600 * 4,
-                    should_stop=self.should_stop,
-                    max_comm_errors=64)
-            except ValueError:
-                log.error(
-                    "Could not complete wait for temperature due to too many comm_errors"
-                )
-            except pyvisa.errors.VisaIOError:
-                self.temperatureController = None
-
-        if self.field_control:
-            log.info("Ramping magnetic field.")
-            self.source.ramp_to_current(self.field_current, self.field_ramp_rate)
 
         # Perform the measurement
         for n in range(self.number_of_repeats):
@@ -360,11 +294,6 @@ class MeasurementProcedure(Procedure):
         """ Wrap up the measurement.
         """
         log.info("Shutting down. Setting devices in a safe state.")
-
-        # Ramp field to zero
-        if self.field_control:
-            log.info("Ramping magnetic field to zero.")
-            self.source.ramp_to_zero(self.field_ramp_rate)
 
         # Disconnect everything
         self.lockin.setInt("/dev4285/sigouts/0/on", 0)
@@ -632,9 +561,9 @@ class MeasurementProcedure(Procedure):
 
         data = {
             "Timestamp (s)": time(),
-            "Temperature (K)": np.nan,
-            "Magnetic field (T)": self.field,
-            "Magnetic field current (A)": self.field_current,
+            "Temperature (K)": self.temperature_controller.temperature_A,
+            "Magnetic field (T)": self.field_reader.field,
+            "Magnetic field current (A)": self.field_reader.magnet_current,
             "Pulse number": self.last_pulse_number,
             "Pulse configuration": self.last_pulse_config,
             "Pulse amplitude (A)": np.nan,
@@ -652,22 +581,6 @@ class MeasurementProcedure(Procedure):
         # Fill the appropriate column with data
         if data_dict is None:
             data.update(data_dict)
-
-        # Grab temperature if necessary
-        if np.isnan(data["Temperature (K)"]) and self.temperatureController is not None:
-            for i in range(2):
-                try:
-                    temperature = self.temperatureController.temperature_1
-                except ValueError:
-                    log.error(
-                        f"Could not get temperature due to ValueError. Attempt #{i + 1}."
-                    )
-                except pyvisa.errors.VisaIOError:
-                    self.temperatureController = None
-                    break
-                else:
-                    data["Temperature (K)"] = temperature
-                    break
 
         # Write the data
         self.emit("results", data)
@@ -759,10 +672,6 @@ class MainWindow(ManagedWindow):
                 "probe_time_constant",
                 "probe_duration",
                 "probe_series_resistance",
-                "temperature_control",
-                "temperature_sp",
-                "field_control",
-                "field_mT",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",
@@ -771,8 +680,6 @@ class MainWindow(ManagedWindow):
                 "pulse_compliance",
                 "pulse_length",
                 "pulse_burst_length",
-                "temperature_sp",
-                "field_mT",
             ),
             sequencer=True,
             inputs_in_scrollarea=True,

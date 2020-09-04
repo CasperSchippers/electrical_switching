@@ -149,7 +149,7 @@ class MeasurementProcedure(Procedure):
         "Probe time constant (s)",
     ]
 
-    max_number_of_probes = 6
+    max_number_of_probes = 2
     probe_columns = list()
     for i in range(max_number_of_probes):
         probe_columns.extend(
@@ -650,7 +650,7 @@ class MeasurementProcedure(Procedure):
             data[key] = np.nan
 
         # Fill the appropriate column with data
-        if data_dict is None:
+        if data_dict is not None:
             data.update(data_dict)
 
         # Grab temperature if necessary

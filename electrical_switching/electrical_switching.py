@@ -771,6 +771,7 @@ class MainWindow(ManagedWindow):
                 "probe_time_constant",
                 "probe_duration",
                 "probe_series_resistance",
+                "probe_current",
                 "temperature_control",
                 "temperature_sp",
                 "field_control",

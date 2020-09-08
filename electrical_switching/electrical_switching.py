@@ -13,7 +13,7 @@ from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.lakeshore import LakeShore331
 
 import zhinst.utils
-from FieldFileReader import FieldFileReader
+from addons import FieldFileReader
 
 from time import sleep, time
 from pathlib import Path

@@ -104,6 +104,8 @@ class MeasurementProcedure(Procedure):
     # probing parameters
     probe_amplitude = FloatParameter("Probe amplitude",
                                      units="V", default=5)
+    probe_current = FloatParameter("Probe current",
+                                   units="mA", default=0.25)
     probe_frequency = FloatParameter("Probe frequency",
                                      units="Hz", default=79)
     probe_time_constant = FloatParameter("Probe time constant",
@@ -136,7 +138,8 @@ class MeasurementProcedure(Procedure):
     probe_columns = list()
     for i in range(max_number_of_probes):
         probe_columns.extend(
-            ["Probe %d x (V)" % (i + 1), "Probe %d y (V)" % (i + 1)]
+            ["Probe %d x (V)" % (i + 1), "Probe %d y (V)" % (i + 1),
+             "Probe %d Rx (Ohm)" % (i + 1), "Probe %d Ry (Ohm)" % (i + 1)]
         )
 
     DATA_COLUMNS.extend(probe_columns)
@@ -532,6 +535,8 @@ class MeasurementProcedure(Procedure):
                 "Probe configuration": probe_idx,
                 "Probe %d x (V)" % (probe_idx): sample["x"][0],
                 "Probe %d y (V)" % (probe_idx): sample["y"][0],
+                "Probe %d Rx (Ohm)" % (probe_idx): sample["x"][0] / (self.probe_current * 1e-3),
+                "Probe %d Ry (Ohm)" % (probe_idx): sample["y"][0] / (self.probe_current * 1e-3),
                 "Probe amplitude (V)": sine_voltage,
                 "Probe sensitivity (V)": sensitivity,
                 "Probe frequency (Hz)": frequency,
@@ -695,6 +700,7 @@ class MainWindow(ManagedWindow):
                 "probe_time_constant",
                 "probe_duration",
                 "probe_series_resistance",
+                "probe_current",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",

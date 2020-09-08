@@ -15,6 +15,7 @@ from pymeasure.instruments.deltaelektronika import SM7045D
 import pyvisa
 
 import zhinst.utils
+from addons import TimeEstimator
 
 from time import sleep, time
 from pathlib import Path
@@ -725,6 +726,12 @@ class MeasurementProcedure(Procedure):
         return pulse_timestamp, self.pulse_amplitude,\
             self.pulse_compliance, pulse_hits_compliance
 
+    def get_time_estimates(self):
+        estimates = dict()
+        estimates['Duration'] = "null"
+
+        return estimates
+
 
 r"""
         __          __  _____   _   _   _____     ____   __          __
@@ -777,6 +784,8 @@ class MainWindow(ManagedWindow):
             sequencer=True,
             inputs_in_scrollarea=True,
         )
+
+        self.estimator = TimeEstimator(self)
 
     def queue(self, *args, procedure=None):
         if procedure is None:

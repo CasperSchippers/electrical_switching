@@ -20,7 +20,7 @@ from addons import TimeEstimator
 from time import sleep, time
 from pathlib import Path
 from shutil import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 from git import cmd, Repo, exc
 import numpy as np
 import ctypes
@@ -733,7 +733,24 @@ class MeasurementProcedure(Procedure):
 
     def get_time_estimates(self):
         estimates = dict()
-        estimates['Duration'] = "null"
+
+        filter_order = 3
+        delay_90 = self.probe_time_constant * (1.93 * filter_order**0.85 + 0.38)
+        delay_99 = self.probe_time_constant * (2.74 * filter_order**0.79 + 1.89)
+        d_probing = 3 + self.probe_duration + delay_99 + 2 * delay_90
+        d_pulsing = self.pulse_burst_length * (self.pulse_delay + self.pulse_length * 1e-3) + 15e-3 + self.probe_delay
+
+        cycles = self.number_of_repeats * self.pulse_number_of_bursts
+
+        n = self.max_number_of_probes
+        duration_1p = np.ceil(cycles * (d_pulsing + d_probing * 1))
+        duration_np = np.ceil(cycles * (d_pulsing + d_probing * n))
+
+        estimates['Duration for 1 probe'] = "%s (%d s)" % (str(timedelta(seconds=duration_1p)), duration_1p)
+        estimates['Duration for %d probes' % n] = "%s (%d s)" % (str(timedelta(seconds=duration_np)), duration_np)
+
+        estimates['1 probe finished at'] = str(datetime.now() + timedelta(seconds=duration_1p))[:-7]
+        estimates['%d probe finished at' % n] = str(datetime.now() + timedelta(seconds=duration_np))[:-7]
 
         return estimates
 

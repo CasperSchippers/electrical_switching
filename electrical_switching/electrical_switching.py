@@ -13,7 +13,7 @@ from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.lakeshore import LakeShore331
 
 import zhinst.utils
-from addons import FieldFileReader
+from addons import FieldFileReader, TimeEstimator
 
 from time import sleep, time
 from pathlib import Path
@@ -638,6 +638,12 @@ class MeasurementProcedure(Procedure):
         return pulse_timestamp, self.pulse_amplitude,\
             self.pulse_compliance, pulse_hits_compliance
 
+    def get_time_estimates(self):
+        estimates = dict()
+        estimates['Duration'] = "null"
+
+        return estimates
+
 
 r"""
         __          __  _____   _   _   _____     ____   __          __
@@ -684,6 +690,8 @@ class MainWindow(ManagedWindow):
             sequencer=True,
             inputs_in_scrollarea=True,
         )
+
+        self.estimator = TimeEstimator(self)
 
     def queue(self, *args, procedure=None):
         if procedure is None:

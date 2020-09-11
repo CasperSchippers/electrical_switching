@@ -344,13 +344,10 @@ class MeasurementProcedure(Procedure):
 
         # Determine if the YAML file exists in the data folder or the software folder
         if file_with_data.is_file():
-            log.info("Loading YAML config file from data folder")
             file = file_with_data
         elif file_with_software.is_file():
-            log.info("Copying YAML config file to data folder")
             file = file_with_software
         else:
-            log.info("Not using a YAML config file")
             read_cfg = False
 
         # read or write the config file
@@ -359,20 +356,21 @@ class MeasurementProcedure(Procedure):
                 self.cfg = yaml.full_load(yml_file)
 
             if write_cfg and file == file_with_software:
+                log.info("Copying YAML config file to data folder")
                 copy(file_with_software, file_with_data)
 
-        elif write_cfg:
-            log.info("Writing default config (only for the columns) to data folder")
-
-            cfg = {
+        else:
+            self.cfg = {
                 "columns": {
                     "pulsing": self.pulses,
                     "probing": self.probes,
                 }
             }
 
-            with open(file, "w") as yml_file:
-                yaml.dump(cfg, yml_file, default_flow_style=False)
+            if write_cfg:
+                log.info("Writing default config (only for the columns) to data folder")
+                with open(file_with_data, "w") as yml_file:
+                    yaml.dump(self.cfg, yml_file, default_flow_style=False)
 
     def extract_config(self):
         """ Extract the loaded config and save to the appropriate variables.

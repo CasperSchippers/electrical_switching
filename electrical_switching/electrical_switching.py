@@ -11,6 +11,7 @@ from pymeasure.experiment import Procedure, Results, unique_filename, \
     Parameter, FloatParameter, BooleanParameter, IntegerParameter
 from pymeasure.instruments.keithley import Keithley6221, Keithley2700
 from pymeasure.instruments.lakeshore import LakeShore331
+from pymeasure.instruments.srs import SR830
 
 import zhinst.utils
 from addons import FieldFileReader, TimeEstimator
@@ -39,10 +40,7 @@ myappid = "fna.MeasurementSoftware.ElectricalSwitching"
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 # get Git software version
-try:
-    version = cmd.Git(Repo(search_parent_directories=True)).describe()
-except exc.GitCommandError:
-    version = "none"
+version = "HFML Nijmegen"
 
 # Get date of measurement
 date = datetime.now()
@@ -75,7 +73,7 @@ class MeasurementProcedure(Procedure):
     AAB = Parameter("Measurement date", default=date)
 
     AAC_folder = Parameter("Measurement folder",
-                           default="E:\\data\\temp\\")
+                           default="C:\\Users\\maglab1\\Desktop\\TUe_measurements_AFM\\Data")
     AAD_filename_base = Parameter("Measurement filename base",
                                   default="electrical_switching")
     AAE_yaml_config_file = Parameter("Measurement configuration file",
@@ -116,12 +114,18 @@ class MeasurementProcedure(Procedure):
     probe_series_resistance = FloatParameter("Probe series resistance",
                                              units="Ohm", default=2e4)
 
+    # HFML magnet parameter
+    HFML_cell = IntegerParameter("HFML cell",
+                                 default=3)
+
     # Define data columns
     DATA_COLUMNS = [
         "Timestamp (s)",
         "Temperature (K)",
         "Magnetic field (T)",
         "Magnetic field current (A)",
+        "Vx Hallbar (V)",
+        "Vy Hallbar (V)",
         "Pulse number",
         "Pulse configuration",
         "Pulse amplitude (A)",
@@ -244,8 +248,13 @@ class MeasurementProcedure(Procedure):
         self.k6221.waveform_abort()
         self.k6221.source_enabled = False
 
+        # Connect to HFML-related equipment
+        log.info("Connecting to SR830 for reading the hall-bar")
+        self.hb_lock_in = SR830("GPIB2::07")
+        log.info("Connecting to temperature_controller")
         self.temperature_controller = LakeShore331("GPIB::01")
-        self.field_reader = FieldFileReader("")
+        log.info("Creating a field-file-reader for the correct cell")
+        self.field_reader = FieldFileReader(cell=self.HFML_cell)
 
     # Define measurement procedure
     def execute(self):
@@ -564,11 +573,22 @@ class MeasurementProcedure(Procedure):
             Keys in this dictionary overwrite the auto-generated values.
         """
 
+        mag_curr = None
+        while mag_curr is None:
+            try:
+                mag_curr = self.field_reader.magnet_current
+            except IndexError:
+                pass
+            except ValueError:
+                pass
+
         data = {
             "Timestamp (s)": time(),
-            "Temperature (K)": self.temperature_controller.temperature_A,
-            "Magnetic field (T)": self.field_reader.field,
-            "Magnetic field current (A)": self.field_reader.magnet_current,
+            "Temperature (K)": self.temperature_controller.temperature_B,
+            "Magnetic field (T)": self.field_reader.current_to_field(mag_curr),
+            "Magnetic field current (A)": mag_curr,
+            "Vx Hallbar (V)": self.hb_lock_in.x,
+            "Vy Hallbar (V)": self.hb_lock_in.y,
             "Pulse number": self.last_pulse_number,
             "Pulse configuration": self.last_pulse_config,
             "Pulse amplitude (A)": np.nan,
@@ -701,6 +721,7 @@ class MainWindow(ManagedWindow):
                 "probe_duration",
                 "probe_series_resistance",
                 "probe_current",
+                "HFML_cell",
             ),
             x_axis="Pulse number",
             y_axis="Probe 1 x (V)",

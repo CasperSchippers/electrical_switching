@@ -1,28 +1,36 @@
 import numpy as np
+import os.path
+
+import warnings
 
 
 class FieldFileReader:
-    _factor_table = {
-        1: np.array([0.82356, 1.10875e-6, +4.12751e-11]),
-        2: np.array([0.93704, 1.65654E-6, -5.64052E-10]),
-        3: np.array([0.89828, 2.66293e-6, -2.03706e-10]),
-        4: np.array([0.60054, 2.39780E-7, -2.62400E-10]),
-        5: np.array([0.89660, 2.11722E-6, -4.56451E-10]),
-    }
-
+    _field_factors = [0.0, 0.90181, 0.0, 1.38851e-06, 0.0, -1.15628e-10]
+    _cell_list = [1, 2, 3, 4, 5]
     _cell = 1
-    _file = "current.txt"
+    _folder = "S:/"
+    _filename = "current.txt"
+    _filebase_cell = "cell%d.txt"
 
-    def __init__(self, cell=1, file=None, **kwargs):
+    def __init__(self, cell=1, folder=None, filename=None, **kwargs):
+        if folder is not None:
+            self._folder = folder
+
+        if filename is not None:
+            self._filename = filename
+
+        self._file = os.path.join(self._folder, self._filename)
+
         self.cell = cell
 
-        if file is not None:
-            self._file = file
+    def read_cell_factors(self):
+        file = os.path.join(self._folder, self._filebase_cell % self.cell)
 
-    @property
-    def field_factors(self):
-        """ Grab the field factors that correspond to the present cell value. """
-        return self._factor_table[self.cell]
+        values = self.get_current_values(file)
+        self._field_factors = np.array(values)
+
+        if len(self._field_factors) < 6:
+            self.read_cell_factors()
 
     @property
     def cell(self):
@@ -31,37 +39,61 @@ class FieldFileReader:
 
     @cell.setter
     def cell(self, cell):
-        """ Set the cell property of the class. """
-        if cell in [1, 2, 3, 4, 5]:
+        """ Set the cell property of the class and read the field-factors. """
+        if cell in self._cell_list:
             self._cell = cell
         else:
             raise ValueError("cell should be in range 1 to 5")
 
-    def get_current_values(self):
+        self.read_cell_factors()
+
+    def get_current_values(self, file=None):
         """ Read the first line of the file and convert to floats. """
-        with open(self._file) as f:
+
+        if file is None:
+            file = self._file
+
+        with open(file) as f:
             line = f.readline().strip()
 
         values = list(map(float, line.split()))
+
+        if len(values) == 0:
+            values = self.get_current_values(file)
 
         return values
 
     def current_to_field(self, current):
         """ Convert the given current (in kA) to a magnetic field (in T). """
 
-        f = self.field_factors
+        f = self._field_factors
 
-        B = current * f[0] + current**3 * f[1] + current**5 * f[2]
+        # Novel implementation, assumes that the factors are exponential
+        # factors sorted in increasing order from 0 to 5
+        b = np.polyval(f[::-1], current)
 
-        return B
+        # As upon testing only the terms 1, 3, and 5 were non-zero, a warning is
+        # issued when other terms are non-zero
+        if any([self._field_factors[0] != 0.,
+                self._field_factors[2] != 0.,
+                self._field_factors[4] != 0.]):
+            warnings.warn("Field-factor terms 0, 2, or 4 is non-zero. Check if"
+                          "Check if the behaviour is as expected! If the "
+                          "behaviour is as intended, this warning can be "
+                          "removed.", category=RuntimeWarning)
+
+        # archaic implementation
+        # b = current * f[1] + current**3 * f[3] + current**5 * f[5]
+
+        return b
 
     @property
     def field(self):
         """ Property that returns the current magnetic field value. """
 
-        vals = self.get_current_values()
+        values = self.get_current_values()
 
-        field = self.current_to_field(vals[0])
+        field = self.current_to_field(values[0])
 
         return field
 

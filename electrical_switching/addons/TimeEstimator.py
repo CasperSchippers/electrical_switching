@@ -6,7 +6,7 @@ from pymeasure.display.Qt import QtCore, QtGui
 
 
 class TimeEstimator(QtGui.QWidget):
-    def __init__(self, parent, inputs=None):
+    def __init__(self, parent, auto_update=True):
         super().__init__(parent)
         self._parent = parent
 
@@ -15,41 +15,58 @@ class TimeEstimator(QtGui.QWidget):
 
         self._get_fields()
 
+        self._setup_ui()
         self._layout()
         self._add_to_interface()
 
         self.update_estimates()
 
+        if auto_update:
+            self.update_box.setCheckState(1)
+
     def _get_fields(self):
         proc = self._parent.make_procedure()
-        self.keys = proc.get_time_estimates().keys()
+        self.number_of_lines = len(proc.get_time_estimates())
 
-    def _layout(self):
-        f_layout = QtGui.QFormLayout(self)
+    def _setup_ui(self):
 
-        self.line_edits = dict()
+        self.line_edits = list()
+        for idx in range(self.number_of_lines):
+            qlb = QtGui.QLabel(self)
 
-        for key in self.keys:
             qle = QtGui.QLineEdit(self)
             qle.setEnabled(False)
             qle.setAlignment(QtCore.Qt.AlignRight)
 
-            self.line_edits[key] = qle
+            self.line_edits.append((qlb, qle))
 
-            f_layout.addRow(key, qle)
 
         # Add a checkbox for continuous updating
-        self.update_box = QtGui.QCheckBox()
-        f_layout.addRow("Update continuously", self.update_box)
+        self.update_box = QtGui.QCheckBox(self)
         self.update_box.setTristate(True)
         self.update_box.stateChanged.connect(self._set_continuous_updating)
+
+        # Add a button for continuous updating
+        self.update_button = QtGui.QPushButton("Update", self)
+        self.update_button.clicked.connect(self.update_estimates)
+
+    def _layout(self):
+        f_layout = QtGui.QFormLayout(self)
+        for row in self.line_edits:
+            f_layout.addRow(*row)
+
+        update_hbox = QtGui.QHBoxLayout()
+        update_hbox.addWidget(self.update_box)
+        update_hbox.addWidget(self.update_button)
+        f_layout.addRow("Update continuously", update_hbox)
 
     def update_estimates(self):
         proc = self._parent.make_procedure()
         estimates = proc.get_time_estimates()
 
-        for key, estimate in estimates.items():
-            self.line_edits[key].setText(estimate)
+        for idx, estimate in enumerate(estimates):
+            self.line_edits[idx][0].setText(estimate[0])
+            self.line_edits[idx][1].setText(estimate[1])
 
     def _add_to_interface(self):
         dock = QtGui.QDockWidget('Time estimator')

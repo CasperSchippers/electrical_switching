@@ -330,22 +330,25 @@ class MeasurementProcedure(Procedure):
     """
 
     # Define additional functions
-    def load_yaml_config(self):
+    def load_yaml_config(self, write_cfg=True):
         """ Load the selected YAML.
         first tries to find the file in the output folder, if
         this cannot be found, load it from the software folder.
+
+        :param write_cfg: bool that determines whether it is allowed to write a config file if absent with the data
         """
         # Try to find config file in output folder
         read_cfg = True
-        file = Path(self.AAC_folder) / self.AAE_yaml_config_file
+        file_with_data = Path(self.AAC_folder) / self.AAE_yaml_config_file
         file_with_software = Path(self.AAE_yaml_config_file)
 
         # Determine if the YAML file exists in the data folder or the software folder
-        if file.is_file():
+        if file_with_data.is_file():
             log.info("Loading YAML config file from data folder")
+            file = file_with_data
         elif file_with_software.is_file():
             log.info("Copying YAML config file to data folder")
-            copy(file_with_software, file)
+            file = file_with_software
         else:
             log.info("Not using a YAML config file")
             read_cfg = False
@@ -354,7 +357,11 @@ class MeasurementProcedure(Procedure):
         if read_cfg:
             with open(file, "r") as yml_file:
                 self.cfg = yaml.full_load(yml_file)
-        else:
+
+            if write_cfg and file == file_with_software:
+                copy(file_with_software, file_with_data)
+
+        elif write_cfg:
             log.info("Writing default config (only for the columns) to data folder")
 
             cfg = {
@@ -664,7 +671,11 @@ class MeasurementProcedure(Procedure):
             self.pulse_compliance, pulse_hits_compliance
 
     def get_time_estimates(self):
-        estimates = dict()
+        self.load_yaml_config(False)
+        self.extract_config()
+
+        n_pulses = len(self.pulses)
+        n_probes = len(self.probes)
 
         filter_order = 3
         delay_90 = self.probe_time_constant * (1.93 * filter_order**0.85 + 0.38)
@@ -674,15 +685,21 @@ class MeasurementProcedure(Procedure):
 
         cycles = self.number_of_repeats * self.pulse_number_of_bursts
 
-        n = self.max_number_of_probes
         duration_1p = np.ceil(cycles * (d_pulsing + d_probing * 1))
-        duration_np = np.ceil(cycles * (d_pulsing + d_probing * n))
+        duration_np = np.ceil(cycles * n_pulses * (d_pulsing + d_probing * n_probes))
 
-        estimates['Duration for 1 probe'] = "%s (%d s)" % (str(timedelta(seconds=duration_1p)), duration_1p)
-        estimates['Duration for %d probes' % n] = "%s (%d s)" % (str(timedelta(seconds=duration_np)), duration_np)
+        estimates = list()
+        estimates.append(("%d pulses" % n_pulses, ", ".join([str(k) for k in self.pulses.keys()])))
+        estimates.append(("%d probes" % n_probes, ", ".join([str(k) for k in self.probes.keys()])))
+        estimates.append(('Duration for (1 pulse, 1 probe)',
+                          "%s (%d s)" % (str(timedelta(seconds=duration_1p)), duration_1p)))
+        estimates.append(('Duration for (%d pulses, %d probes)' % (n_pulses, n_probes),
+                          "%s (%d s)" % (str(timedelta(seconds=duration_np)), duration_np)))
 
-        estimates['1 probe finished at'] = str(datetime.now() + timedelta(seconds=duration_1p))[:-7]
-        estimates['%d probe finished at' % n] = str(datetime.now() + timedelta(seconds=duration_np))[:-7]
+        estimates.append(('1 pulse, 1 probe probe finished at',
+                          str(datetime.now() + timedelta(seconds=duration_1p))[:-7]))
+        estimates.append(('%d pulses, %d probes probe finished at' % (n_pulses, n_probes),
+                          str(datetime.now() + timedelta(seconds=duration_np))[:-7]))
 
         return estimates
 

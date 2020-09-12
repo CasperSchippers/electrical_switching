@@ -20,7 +20,7 @@ from time import sleep, time
 from pathlib import Path
 from shutil import copy
 from datetime import datetime, timedelta
-from git import cmd, Repo, exc
+# from git import cmd, Repo, exc
 import numpy as np
 import ctypes
 import yaml
@@ -204,7 +204,7 @@ class MeasurementProcedure(Procedure):
         self.determine_probe_parameters()
 
         # Connect and set up Keithley 2700 as switchboard
-        self.k2700 = Keithley2700("GPIB::30::INSTR")
+        self.k2700 = Keithley2700("GPIB2::30::INSTR")
 
         # Enable to set text on the display of the Keithley 2700
         self.k2700.text_enabled = True
@@ -244,7 +244,7 @@ class MeasurementProcedure(Procedure):
 
         # Connect and set up Keithley 6221 as pulsing device
         log.info("Connecting to and setting up pulse source")
-        self.k6221 = Keithley6221("GPIB::13::INSTR")
+        self.k6221 = Keithley6221("GPIB2::13::INSTR")
         self.k6221.waveform_abort()
         self.k6221.source_enabled = False
 
@@ -252,7 +252,7 @@ class MeasurementProcedure(Procedure):
         log.info("Connecting to SR830 for reading the hall-bar")
         self.hb_lock_in = SR830("GPIB2::07")
         log.info("Connecting to temperature_controller")
-        self.temperature_controller = LakeShore331("GPIB::01")
+        self.temperature_controller = LakeShore331("GPIB2::14")
         log.info("Creating a field-file-reader for the correct cell")
         self.field_reader = FieldFileReader(cell=self.HFML_cell)
 

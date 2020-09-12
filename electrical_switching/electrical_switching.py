@@ -687,16 +687,16 @@ class MeasurementProcedure(Procedure):
         duration_np = np.ceil(cycles * n_pulses * (d_pulsing + d_probing * n_probes))
 
         estimates = list()
-        estimates.append(("%d pulses" % n_pulses, ", ".join([str(k) for k in self.pulses.keys()])))
-        estimates.append(("%d probes" % n_probes, ", ".join([str(k) for k in self.probes.keys()])))
-        estimates.append(('Duration for (1 pulse, 1 probe)',
+        estimates.append(("%d pulses (total %d)" % (n_pulses, n_pulses * cycles), ", ".join([str(k) for k in self.pulses.keys()])))
+        estimates.append(("%d probes (total %d)" % (n_pulses, n_pulses * n_pulses * cycles), ", ".join([str(k) for k in self.probes.keys()])))
+        estimates.append(('Duration (1 pulse, 1 probe)',
                           "%s (%d s)" % (str(timedelta(seconds=duration_1p)), duration_1p)))
-        estimates.append(('Duration for (%d pulses, %d probes)' % (n_pulses, n_probes),
+        estimates.append(('Duration (%d pulses, %d probes)' % (n_pulses, n_probes),
                           "%s (%d s)" % (str(timedelta(seconds=duration_np)), duration_np)))
 
-        estimates.append(('1 pulse, 1 probe probe finished at',
+        estimates.append(('1 pulse, 1 probe finished at',
                           str(datetime.now() + timedelta(seconds=duration_1p))[:-7]))
-        estimates.append(('%d pulses, %d probes probe finished at' % (n_pulses, n_probes),
+        estimates.append(('%d pulses, %d probes finished at' % (n_pulses, n_probes),
                           str(datetime.now() + timedelta(seconds=duration_np))[:-7]))
 
         return estimates

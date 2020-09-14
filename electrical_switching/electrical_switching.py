@@ -143,7 +143,8 @@ class MeasurementProcedure(Procedure):
     for i in range(max_number_of_probes):
         probe_columns.extend(
             ["Probe %d x (V)" % (i + 1), "Probe %d y (V)" % (i + 1),
-             "Probe %d Rx (Ohm)" % (i + 1), "Probe %d Ry (Ohm)" % (i + 1)]
+             "Probe %d Rx (Ohm)" % (i + 1), "Probe %d Ry (Ohm)" % (i + 1),
+             "Probe %d h2x (V)" % (i + 1), "Probe %d h2y (V)" % (i + 1)]
         )
 
     DATA_COLUMNS.extend(probe_columns)
@@ -230,14 +231,19 @@ class MeasurementProcedure(Procedure):
 
         self.lockin.setInt('/dev4285/demods/0/enable', 1)
         self.lockin.setInt('/dev4285/demods/1/enable', 0)
-        self.lockin.setInt('/dev4285/demods/2/enable', 0)
+        self.lockin.setInt('/dev4285/demods/2/enable', 1)
         self.lockin.setInt('/dev4285/demods/3/enable', 0)
 
         self.lockin.setInt('/dev4285/demods/0/order', 3)
+        self.lockin.setInt('/dev4285/demods/2/order', 3)
         self.lockin.setInt('/dev4285/demods/0/oscselect', 0)
+        self.lockin.setInt('/dev4285/demods/2/oscselect', 0)
         self.lockin.setInt('/dev4285/demods/0/adcselect', 0)
+        self.lockin.setInt('/dev4285/demods/2/adcselect', 0)
         self.lockin.setDouble('/dev4285/demods/0/harmonic', 1)
+        self.lockin.setDouble('/dev4285/demods/2/harmonic', 2)
         self.lockin.setDouble('/dev4285/demods/0/phaseshift', 0)
+        self.lockin.setDouble('/dev4285/demods/2/phaseshift', 0)
         self.lockin.setInt('/dev4285/sigins/0/float', 0)
         self.lockin.setInt('/dev4285/sigins/0/imp50', 0)
         self.lockin.setInt('/dev4285/sigouts/0/imp50', 0)
@@ -502,6 +508,7 @@ class MeasurementProcedure(Procedure):
         # Set parameters on lock-in
         self.lockin.set([
             ("/dev4285/demods/0/timeconstant", probe["time constant"]),
+            ("/dev4285/demods/2/timeconstant", probe["time constant"]),
             ("/dev4285/oscs/0/freq", probe["frequency"]),
             ("/dev4285/sigouts/0/range", 20),
             ("/dev4285/sigouts/0/amplitudes/0",
@@ -543,6 +550,7 @@ class MeasurementProcedure(Procedure):
         while True:
             # Probe
             sample = self.lockin.getSample("/dev4285/demods/0/sample")
+            sample_h2 = self.lockin.getSample("/dev4285/demods/2/sample")
 
             # Store the values
             self.store_measurement({
@@ -551,6 +559,8 @@ class MeasurementProcedure(Procedure):
                 "Probe %d y (V)" % (probe_idx): sample["y"][0],
                 "Probe %d Rx (Ohm)" % (probe_idx): sample["x"][0] / (self.probe_current * 1e-3),
                 "Probe %d Ry (Ohm)" % (probe_idx): sample["y"][0] / (self.probe_current * 1e-3),
+                "Probe %d h2x (V)" % (probe_idx): sample_h2["x"][0],
+                "Probe %d h2y (V)" % (probe_idx): sample_h2["y"][0],
                 "Probe amplitude (V)": sine_voltage,
                 "Probe sensitivity (V)": sensitivity,
                 "Probe frequency (Hz)": frequency,
